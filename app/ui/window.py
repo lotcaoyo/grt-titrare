@@ -78,8 +78,8 @@ class App(_Base):
     def _apply_icon(self) -> None:
         """iconbitmap sets the window and taskbar icon on Windows; iconphoto
         is the fallback everywhere else. Neither is worth crashing over."""
-        ico = env.ROOT / "assets" / "icon.ico"
-        png = env.ROOT / "assets" / "icon.png"
+        ico = env.ASSETS / env.ICON_NAME
+        png = env.ASSETS / "icon.png"
 
         # On Windows the .ico is the only right answer: it carries ten sizes
         # drawn for their exact pixel count. Adding iconphoto on top hands the

@@ -16,13 +16,14 @@ from pathlib import Path
 
 from . import env
 
-ICON = env.ROOT / "assets" / "icon.ico"
+ICON = env.ASSETS / env.ICON_NAME
 NAME = "GRT Titrare"
 
 _SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
 $desktop = [Environment]::GetFolderPath('Desktop')
 $link = Join-Path $desktop '{name}.lnk'
+if (Test-Path $link) {{ Remove-Item $link -Force }}
 $shell = New-Object -ComObject WScript.Shell
 $s = $shell.CreateShortcut($link)
 $s.TargetPath       = '{target}'
@@ -88,7 +89,7 @@ def create() -> Path | None:
     return Path(result) if result else None
 
 
-ICON_STAMP = "icon-6"       # bump when the icon changes
+ICON_STAMP = "icon-v9"       # bump when the icon changes
 
 
 def ensure_once() -> Path | None:

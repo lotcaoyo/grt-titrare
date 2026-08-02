@@ -87,6 +87,18 @@ def run() -> list[str]:
             except OSError:
                 pass
 
+    # Previous icon files: each release ships a new name to defeat the icon
+    # cache, and the old ones are dead weight.
+    assets = env.ROOT / "assets"
+    if assets.is_dir():
+        for old in assets.glob("icon*.ico"):
+            if old.name != env.ICON_NAME:
+                try:
+                    old.unlink()
+                    removed.append(f"assets/{old.name}")
+                except OSError:
+                    pass
+
     # A backup is kept only until the next update proves the new code runs.
     backup = env.DATA / "app_backup"
     if backup.is_dir():

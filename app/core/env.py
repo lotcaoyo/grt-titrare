@@ -38,6 +38,13 @@ BIN = RUNTIME / "bin"
 FFMPEG = BIN / "ffmpeg.exe"
 FFPROBE = BIN / "ffprobe.exe"
 
+ASSETS = ROOT / "assets"
+
+# The icon file carries a version in its name on purpose. Windows caches icons
+# by path, so replacing the contents of a file it has already seen changes
+# nothing on screen — a new path is the only reliable way to refresh it.
+ICON_NAME = "icon-v9.ico"
+
 MODELS = ROOT / "models"
 LOGS = ROOT / "logs"
 
