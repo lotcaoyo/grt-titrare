@@ -55,15 +55,15 @@ class App(_Base):
 
         self.views = {
             "work": QueueView(self.container, self.engine),
-            "components": ComponentsView(self.container, self._on_components),
+            "components": ComponentsView(self.container, self._on_components,
+                                         self._after_first_scan),
         }
         self._build_footer()
         self._enable_drop()
 
         self.current = ""
-        self._on_components()
-        ready = self.views["components"].ready()
-        self.show("work" if ready else "components")
+        self._touched = False
+        self.show("components")
 
         self.engine.start()
         self.protocol("WM_DELETE_WINDOW", self._close)
@@ -115,7 +115,9 @@ class App(_Base):
         theme.body(footer, f"GRT Titrare {env.VERSION}",
                    theme.FAINT, 9).pack(side="right")
 
-    def show(self, key: str) -> None:
+    def show(self, key: str, by_user: bool = True) -> None:
+        if by_user:
+            self._touched = True
         if key == self.current:
             return
         for view in self.views.values():
@@ -128,6 +130,12 @@ class App(_Base):
                              fg=theme.TEXT if active else theme.MUTED)
         if key == "components":
             self.views["components"].refresh()
+
+    def _after_first_scan(self) -> None:
+        """Everything already installed and the user has not clicked anything:
+        open on the working screen instead of a wall of green ticks."""
+        if not self._touched and self.views["components"].ready():
+            self.show("work", by_user=False)
 
     # -- drag and drop ------------------------------------------------------ #
 
@@ -209,7 +217,7 @@ class App(_Base):
         self._update_status()
 
     def _update_status(self) -> None:
-        card = gpu.detect()
+        card = gpu.detect()   # cached after the first call
         mode = self.engine.recogniser.mode
         parts = [card.summary]
         if mode:

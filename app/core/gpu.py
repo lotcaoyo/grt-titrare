@@ -109,7 +109,7 @@ def _via_smi() -> GpuInfo | None:
             ["nvidia-smi",
              "--query-gpu=name,memory.total,driver_version",
              "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, timeout=6,
             creationflags=env.hide_console_flags(),
         )
     except (OSError, subprocess.SubprocessError):

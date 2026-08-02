@@ -59,7 +59,7 @@ def _pip(packages: list[str], log: Log) -> None:
             log(line)
     if process.wait() != 0:
         raise RuntimeError("pip завершился с ошибкой — подробности в журнале ниже")
-    importlib.invalidate_caches()
+    forget_imports()
 
 
 def _download(url: str, target: Path, progress: Progress, caption: str) -> None:
@@ -82,19 +82,34 @@ def _download(url: str, target: Path, progress: Progress, caption: str) -> None:
                     progress(-1, f"{caption} — {done / 1e6:.0f} МБ")
 
 
-def _folder_mb(path: Path) -> float:
-    if not path.exists():
+def _file_gb(path: Path) -> float:
+    """One stat call. Walking a three gigabyte folder to show a number is not
+    worth freezing the window for."""
+    try:
+        return path.stat().st_size / 1e9
+    except OSError:
         return 0.0
-    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file()) / 1e6
+
+
+_import_cache: dict[str, bool] = {}
+
+
+def forget_imports() -> None:
+    """Called after pip, so the next check sees what was just installed."""
+    _import_cache.clear()
+    importlib.invalidate_caches()
 
 
 def _importable(module: str) -> bool:
+    if module in _import_cache:
+        return _import_cache[module]
     env.enable_local_packages()
     try:
-        importlib.invalidate_caches()
-        return importlib.util.find_spec(module) is not None
+        found = importlib.util.find_spec(module) is not None
     except (ImportError, ValueError):
-        return False
+        found = False
+    _import_cache[module] = found
+    return found
 
 
 # --------------------------------------------------------------------------- #
@@ -128,7 +143,7 @@ class DriverComponent(Component):
         )
 
     def check(self) -> tuple[str, str]:
-        info = gpu.detect(refresh=True)
+        info = gpu.detect()
         if info.present:
             return READY, f"{info.summary}. {info.speed_hint()}"
         return BLOCKED, (f"{info.reason} Титры делать можно, "
@@ -215,7 +230,7 @@ class CudaComponent(Component):
         has_cublas = (root / "cublas" / "bin").is_dir()
         has_cudnn = (root / "cudnn" / "bin").is_dir()
         if has_cublas and has_cudnn:
-            return READY, f"Установлены · {_folder_mb(root):.0f} МБ"
+            return READY, "Установлены"
         if not gpu.detect().present:
             return BLOCKED, "Не нужны: дискретная видеокарта не обнаружена"
         return MISSING, "Не установлены — видеокарта простаивает"
@@ -250,9 +265,9 @@ class ModelComponent(Component):
 
     def check(self) -> tuple[str, str]:
         for name in ("large-v3", "medium"):
-            path = self._target(name)
-            if (path / "model.bin").exists():
-                return READY, f"{name} · {_folder_mb(path) / 1000:.1f} ГБ"
+            weights = self._target(name) / "model.bin"
+            if weights.exists():
+                return READY, f"{name} · {_file_gb(weights):.1f} ГБ"
         wanted = self.resolve_name()
         self.size = "3,1 ГБ" if wanted == "large-v3" else "1,5 ГБ"
         return MISSING, f"Не загружена. Для этой машины подходит {wanted}"
@@ -284,11 +299,12 @@ class ModelComponent(Component):
 
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
+        weights = target / "model.bin"
         while thread.is_alive():
-            done = _folder_mb(target)
+            done = _file_gb(weights) * 1000
             progress(min(done / expected_mb, 0.99),
                      f"Загрузка модели {name} — {done:.0f} из {expected_mb} МБ")
-            time.sleep(0.5)
+            time.sleep(0.7)
         thread.join()
         if failure:
             raise failure[0]
