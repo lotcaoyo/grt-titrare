@@ -99,6 +99,15 @@ def run() -> list[str]:
                 except OSError:
                     pass
 
+    # Executables retired by an icon rebuild: they were still running when the
+    # replacement arrived, so they could only be renamed, not removed.
+    for stray in (env.RUNTIME / "python" / "Scripts").glob("*.old-*.exe"):
+        try:
+            stray.unlink()
+            removed.append(f"runtime/.../{stray.name}")
+        except OSError:
+            pass
+
     # Half-built launcher left behind by an interrupted rebuild.
     for stray in (env.RUNTIME / "python" / "Scripts").glob("*.new"):
         try:

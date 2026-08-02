@@ -15,6 +15,7 @@ from __future__ import annotations
 import ctypes
 import shutil
 import struct
+import time
 import subprocess
 import sys
 from ctypes import wintypes
@@ -116,6 +117,20 @@ def _works(exe: Path) -> bool:
         return False
 
 
+def _flush_shell_cache() -> None:
+    """Tell the shell the icons changed.
+
+    Explorer caches icons per file, and a desktop shortcut keeps showing the
+    old picture until it is told otherwise. This is the same notification the
+    system sends when file associations change."""
+    try:
+        shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+        SHCNE_ASSOCCHANGED, SHCNF_IDLIST = 0x08000000, 0x0000
+        shell32.SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, None, None)
+    except Exception:      # noqa: BLE001 - cosmetic
+        pass
+
+
 def ensure() -> Path | None:
     """Build the executable if missing or if the icon has changed."""
     if sys.platform != "win32" or not env.PYTHONW.exists():
@@ -143,8 +158,18 @@ def ensure() -> Path | None:
         if not _works(staging):
             staging.unlink(missing_ok=True)
             return None
-        target.unlink(missing_ok=True)
+
+        # The application is very likely running from this very file, and
+        # Windows refuses to delete a running executable. Renaming one is
+        # allowed, so the old copy is moved aside and swept up next start.
+        if target.exists():
+            retired = target.with_name(f"{target.stem}.old-{int(time.time())}.exe")
+            try:
+                target.rename(retired)
+            except OSError:
+                target.unlink(missing_ok=True)
         staging.replace(target)
+        _flush_shell_cache()
     except Exception:
         return target if target.exists() else None
 
