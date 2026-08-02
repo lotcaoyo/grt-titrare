@@ -31,6 +31,19 @@ class Entry:
         return self.path.is_file()
 
     @property
+    def folder_exists(self) -> bool:
+        return self.path.parent.is_dir()
+
+    @property
+    def diagnosis(self) -> str:
+        """Say which of the two very different problems this is."""
+        if self.exists:
+            return ""
+        if not self.folder_exists:
+            return f"Папка недоступна: {self.path.parent}"
+        return f"Файл не найден: {self.path}"
+
+    @property
     def size_kb(self) -> float:
         try:
             return self.path.stat().st_size / 1024
@@ -93,7 +106,47 @@ def add(name: str, path: Path, cues: int, source: Path | None = None) -> None:
     _store(entries[:500])
 
 
+def locate(entry: Entry) -> Path | None:
+    """Look for the file under the names this tool could have given it.
+
+    A subtitle file is written next to its video, and the video may since have
+    moved together with it. Checking the obvious alternatives costs nothing and
+    saves the user from rebuilding something that is sitting right there."""
+    if entry.path.is_file():
+        return entry.path
+
+    candidates = [entry.path.with_name(f"{entry.path.stem}_RO.srt")]
+    if entry.source:
+        source = Path(entry.source)
+        candidates += [source.with_suffix(".srt"),
+                       source.with_name(f"{source.stem}_RO.srt")]
+    for candidate in candidates:
+        try:
+            if candidate.is_file():
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
+def heal() -> int:
+    """Repoint entries whose file turned up under another name."""
+    entries = _load()
+    fixed = 0
+    for entry in entries:
+        if entry.exists:
+            continue
+        found = locate(entry)
+        if found is not None:
+            entry.path = found
+            fixed += 1
+    if fixed:
+        _store(entries)
+    return fixed
+
+
 def items(include_missing: bool = False) -> list[Entry]:
+    heal()
     entries = _load()
     if include_missing:
         return entries

@@ -175,6 +175,23 @@ class Pipeline:
         (env.SESSIONS / f"{job.key}.json").unlink(missing_ok=True)
         self.notify()
 
+    def rebuild(self, job: Job) -> bool:
+        """Write the subtitle file again from the translation already stored.
+
+        Nothing is recognised or translated a second time: the sentences and
+        their Romanian counterparts are on disk, so restoring a lost file costs
+        a second rather than a working session."""
+        if not job.sentences or job.missing():
+            return False
+        self._assemble(job)
+        return job.state == DONE
+
+    def find_by_srt(self, path: Path) -> Job | None:
+        for job in self.jobs:
+            if job.srt_path == path or job.source.with_suffix(".srt") == path:
+                return job
+        return None
+
     def refresh_terms(self, job: Job) -> None:
         """Rebuild the prompts so the new terms are already inside the text
         the user is about to copy."""

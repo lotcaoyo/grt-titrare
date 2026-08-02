@@ -40,8 +40,13 @@ class ArchiveRow(tk.Frame):
                 detail += f" · {entry.when}"
             theme.body(labels, detail, theme.MUTED, 10).pack(fill="x", pady=(3, 0))
         else:
-            theme.body(labels, f"Файл не найден: {entry.path}",
+            theme.body(labels, entry.diagnosis,
                        theme.RED, 10, wrap=520).pack(fill="x", pady=(3, 0))
+            if view.can_rebuild(entry):
+                theme.body(labels,
+                           "Перевод сохранён — файл можно собрать заново, "
+                           "ничего переводить не придётся.",
+                           theme.MUTED, 9, wrap=520).pack(fill="x", pady=(2, 0))
 
         theme.body(top, str(entry.path.parent), theme.FAINT, 9).pack(
             side="right", pady=(4, 0))
@@ -54,13 +59,22 @@ class ArchiveRow(tk.Frame):
              ("Показать файл", self._reveal, "quiet"),
              ("Сохранить копию", self._save_copy, "quiet"))
             if entry.exists else
-            (("Убрать из списка", self._forget, "quiet"),)
+            ((("Собрать заново", self._rebuild, "primary"),)
+             if view.can_rebuild(entry) else ())
+            + (("Убрать из списка", self._forget, "quiet"),)
         )
         for label, command, kind in buttons:
             theme.Button(actions, label, command, kind=kind).pack(
                 side="left", padx=(4, 0))
 
         tk.Frame(card, bg=theme.BG, height=14).pack(fill="x")
+
+    def _rebuild(self) -> None:
+        if self.view.rebuild(self.entry):
+            self.view.flash("Файл собран заново")
+        else:
+            self.view.flash("Не удалось собрать — перевод неполный")
+        self.view.refresh()
 
     def _forget(self) -> None:
         archive.forget(self.entry.path)
@@ -177,6 +191,22 @@ class ArchiveView(tk.Frame):
             self.rows.append(row)
         self.placeholder.configure(
             text=f"Показано {len(shown)} из {len(self.entries)}")
+
+    def _job_for(self, entry: archive.Entry):
+        if self.engine is None:
+            return None
+        for job in self.engine.jobs:
+            if str(job.source) == entry.source or job.srt_path == entry.path:
+                return job
+        return None
+
+    def can_rebuild(self, entry: archive.Entry) -> bool:
+        job = self._job_for(entry)
+        return bool(job and job.sentences and not job.missing())
+
+    def rebuild(self, entry: archive.Entry) -> bool:
+        job = self._job_for(entry)
+        return bool(job and self.engine.rebuild(job))
 
     # -- actions -------------------------------------------------------------- #
 
