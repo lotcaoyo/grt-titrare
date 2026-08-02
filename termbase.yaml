@@ -1,0 +1,65 @@
+# GRT Titrare — термбаза
+#
+# Слева русское написание, справа румынское. Каждая строка работает дважды:
+# русская часть подсказывает распознавателю, как звучит слово, румынская
+# закрепляет единственно верную форму в титрах.
+#
+# Увидели повторяющуюся ошибку — допишите строку. Больше это слово не сломается.
+
+places:
+  Комрат: Comrat
+  Гагаузия: Găgăuzia
+  Гагаузии: Găgăuzia
+  Чадыр-Лунга: Ceadîr-Lunga
+  Вулканешты: Vulcănești
+  Кишинёв: Chișinău
+  Кишинев: Chișinău
+  Молдова: Moldova
+  Бессарабка: Basarabeasca
+  Тараклия: Taraclia
+  Копчак: Copceac
+  Конгаз: Congaz
+  Бешалма: Beșalma
+  Авдарма: Avdarma
+  Чок-Майдан: Cioc-Maidan
+  Баурчи: Baurci
+  Казаклия: Cazaclia
+  Джолтай: Gaidar
+  Светлый: Svetlîi
+  Бендеры: Bender
+  Тирасполь: Tiraspol
+  Бельцы: Bălți
+  Приднестровье: Transnistria
+
+organisations:
+  Народное собрание: Adunarea Populară
+  Исполнительный комитет: Comitetul Executiv
+  Исполком: Comitetul Executiv
+  Башкан: Bașcanul
+  Парламент Молдовы: Parlamentul Moldovei
+  Правительство Молдовы: Guvernul Moldovei
+  Конституционный суд: Curtea Constituțională
+  Центральная избирательная комиссия: Comisia Electorală Centrală
+  Министерство финансов: Ministerul Finanțelor
+  Министерство обороны: Ministerul Apărării
+  Министерство внутренних дел: Ministerul Afacerilor Interne
+  Национальный антикоррупционный центр: Centrul Național Anticorupție
+  Генеральная прокуратура: Procuratura Generală
+  Европейский союз: Uniunea Europeană
+  Евросоюз: Uniunea Europeană
+  Гагаузия Радио Телевизиону: Găgăuziya Radio Televizionu
+
+people:
+  # Впишите сюда фамилии, которые звучат в ваших фильмах.
+  # Это самая полезная секция: без неё имена придётся править руками.
+  Евгения Гуцул: Evghenia Guțul
+  Дмитрий Константинов: Dmitri Constantinov
+  Майя Санду: Maia Sandu
+
+terms:
+  автономия: autonomie
+  автономно-территориальное образование: unitate teritorial-autonomă
+  депутат: deputat
+  бюджет: buget
+  лей: leu
+  леев: lei

@@ -1,0 +1,6 @@
+runtime/
+models/
+data/
+logs/
+__pycache__/
+*.pyc
