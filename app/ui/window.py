@@ -13,6 +13,7 @@ import tkinter as tk
 
 from ..core import env, gpu, pipeline, updater
 from . import theme
+from .archive_view import ArchiveView
 from .components_view import ComponentsView
 from .queue_view import QueueView
 
@@ -25,7 +26,7 @@ except Exception:                       # noqa: BLE001
     DND_FILES = None
     _DND = False
 
-TABS = (("work", "Титры"), ("components", "Компоненты"))
+TABS = (("work", "Титры"), ("archive", "Готово"), ("components", "Компоненты"))
 
 # Windows hands over dropped paths as {C:/with spaces/a.mp4} C:/b.mp4
 DROP_ITEM = re.compile(r"\{([^}]*)\}|(\S+)")
@@ -55,6 +56,7 @@ class App(_Base):
 
         self.views = {
             "work": QueueView(self.container, self.engine),
+            "archive": ArchiveView(self.container),
             "components": ComponentsView(self.container, self._on_components,
                                          self._after_first_scan),
         }
@@ -128,8 +130,8 @@ class App(_Base):
             active = tab_key == key
             button.configure(bg=theme.BG if active else theme.SURFACE,
                              fg=theme.TEXT if active else theme.MUTED)
-        if key == "components":
-            self.views["components"].refresh()
+        if key in ("components", "archive"):
+            self.views[key].refresh()
 
     def _after_first_scan(self) -> None:
         """Everything already installed and the user has not clicked anything:
@@ -230,6 +232,8 @@ class App(_Base):
             try:
                 self.views["work"].refresh()
                 self._update_status()
+                if self.current == "archive":
+                    self.views["archive"].refresh()
             except tk.TclError:
                 pass
         self.after(200, self._tick)

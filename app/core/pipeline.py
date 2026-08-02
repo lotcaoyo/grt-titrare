@@ -21,7 +21,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from . import asr, env, subtitles
+from . import archive, asr, env, subtitles
 from . import termbase as tb_module
 from .termbase import Termbase
 
@@ -335,6 +335,7 @@ class Pipeline:
             problems = subtitles.validate(cues)
             problems += self._verify_terms(job, spans, order)
             job.srt_path = target
+            archive.add(job.name, target, len(cues), job.source)
             job.review = subtitles.review_text(pairs, russian)
             job.state = DONE
             job.progress = 1.0

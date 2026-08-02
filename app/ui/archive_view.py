@@ -1,0 +1,175 @@
+"""The finished-subtitles tab.
+
+One list of every .srt the tool has produced, newest first, named after the
+film. Each row does the three things actually needed: read it, open it, find
+it on disk — plus a way to gather a whole batch into one folder when a set of
+films has to travel together.
+"""
+
+from __future__ import annotations
+
+import shutil
+import tkinter as tk
+from pathlib import Path
+from tkinter import filedialog
+
+from ..core import archive
+from . import theme
+from .queue_view import TextWindow, open_file, reveal
+
+
+class ArchiveRow(tk.Frame):
+    def __init__(self, parent: tk.Misc, entry: archive.Entry,
+                 view: "ArchiveView") -> None:
+        super().__init__(parent, bg=theme.BG)
+        self.entry = entry
+        self.view = view
+
+        card = theme.card(self)
+        card.pack(fill="x")
+
+        top = tk.Frame(card, bg=theme.BG)
+        top.pack(fill="x", padx=18, pady=(14, 0))
+
+        labels = tk.Frame(top, bg=theme.BG)
+        labels.pack(side="left", fill="x", expand=True)
+        theme.body(labels, f"{entry.name}.srt", theme.TEXT, 12).pack(fill="x")
+        theme.body(labels,
+                   f"{entry.cues} титров · {entry.size_kb:.0f} КБ · {entry.when}",
+                   theme.MUTED, 10).pack(fill="x", pady=(3, 0))
+
+        theme.body(top, str(entry.path.parent), theme.FAINT, 9).pack(
+            side="right", pady=(4, 0))
+
+        actions = tk.Frame(card, bg=theme.BG)
+        actions.pack(fill="x", padx=14, pady=(8, 0))
+        for label, command, kind in (
+            ("Посмотреть", self._view, "secondary"),
+            ("Открыть", self._open, "quiet"),
+            ("Показать файл", self._reveal, "quiet"),
+            ("Сохранить копию", self._save_copy, "quiet"),
+        ):
+            theme.Button(actions, label, command, kind=kind).pack(
+                side="left", padx=(4, 0))
+
+        tk.Frame(card, bg=theme.BG, height=14).pack(fill="x")
+
+    def _view(self) -> None:
+        TextWindow(self.winfo_toplevel(), f"{self.entry.name}.srt",
+                   archive.read(self.entry))
+
+    def _open(self) -> None:
+        open_file(self.entry.path)
+
+    def _reveal(self) -> None:
+        reveal(self.entry.path)
+
+    def _save_copy(self) -> None:
+        target = filedialog.asksaveasfilename(
+            title="Сохранить титры", defaultextension=".srt",
+            initialfile=f"{self.entry.name}.srt",
+            filetypes=[("Субтитры", "*.srt"), ("Все файлы", "*.*")])
+        if not target:
+            return
+        try:
+            shutil.copy2(self.entry.path, target)
+            self.view.flash(f"Сохранено: {Path(target).name}")
+        except OSError as exc:
+            self.view.flash(f"Не удалось сохранить: {exc}")
+
+
+class ArchiveView(tk.Frame):
+    def __init__(self, parent: tk.Misc) -> None:
+        super().__init__(parent, bg=theme.BG)
+        self.entries: list[archive.Entry] = []
+
+        header = tk.Frame(self, bg=theme.BG)
+        header.pack(fill="x", padx=28, pady=(24, 6))
+        theme.title(header, "Готовые титры").pack(side="left")
+        theme.Button(header, "Собрать в папку", self._collect,
+                     kind="secondary").pack(side="right")
+
+        search = tk.Frame(self, bg=theme.BG)
+        search.pack(fill="x", padx=28, pady=(0, 10))
+        self.query = tk.StringVar()
+        self.query.trace_add("write", lambda *_: self._render())
+        box = tk.Entry(search, textvariable=self.query, font=theme.font(10),
+                       relief="flat", bd=0, bg=theme.SURFACE, fg=theme.TEXT,
+                       insertbackground=theme.TEXT)
+        box.pack(fill="x", ipady=8, ipadx=12)
+        self.placeholder = theme.body(self, "Поиск по названию фильма",
+                                      theme.FAINT, 9)
+        self.placeholder.pack(fill="x", padx=28, pady=(0, 8))
+
+        self.notice = theme.body(self, "", theme.ACCENT, 10)
+
+        self.area = theme.Scrollable(self)
+        self.area.pack(fill="both", expand=True, padx=20, pady=(0, 8))
+        self.empty = theme.body(
+            self.area.inner,
+            "Пока пусто. Как только фильм будет собран, титры появятся здесь "
+            "под именем фильма.", theme.FAINT, 10, wrap=560)
+        self.rows: list[ArchiveRow] = []
+
+    # -- data ---------------------------------------------------------------- #
+
+    def refresh(self) -> None:
+        self.entries = archive.items()
+        self._render()
+
+    def _render(self) -> None:
+        needle = self.query.get().strip().lower()
+        shown = [e for e in self.entries if needle in e.name.lower()]
+
+        for row in self.rows:
+            row.destroy()
+        self.rows.clear()
+
+        if not shown:
+            self.empty.configure(
+                text=("Ничего не найдено." if needle else
+                      "Пока пусто. Как только фильм будет собран, титры "
+                      "появятся здесь под именем фильма."))
+            self.empty.pack(fill="x", padx=16, pady=10)
+            self.placeholder.configure(
+                text=f"Всего файлов: {len(self.entries)}" if self.entries
+                else "Поиск по названию фильма")
+            return
+
+        self.empty.pack_forget()
+        for entry in shown:
+            row = ArchiveRow(self.area.inner, entry, self)
+            row.pack(fill="x", padx=8, pady=6)
+            self.rows.append(row)
+        self.placeholder.configure(
+            text=f"Показано {len(shown)} из {len(self.entries)}")
+
+    # -- actions -------------------------------------------------------------- #
+
+    def flash(self, message: str) -> None:
+        self.notice.configure(text=message)
+        self.notice.pack(fill="x", padx=28, pady=(0, 6), before=self.area)
+        self.after(4000, self.notice.pack_forget)
+
+    def _collect(self) -> None:
+        """Copy the whole visible batch into one folder, keeping film names."""
+        needle = self.query.get().strip().lower()
+        shown = [e for e in self.entries if needle in e.name.lower()]
+        if not shown:
+            self.flash("Нечего собирать")
+            return
+
+        folder = filedialog.askdirectory(title="Куда сложить титры")
+        if not folder:
+            return
+
+        destination = Path(folder)
+        copied = failed = 0
+        for entry in shown:
+            try:
+                shutil.copy2(entry.path, destination / f"{entry.name}.srt")
+                copied += 1
+            except OSError:
+                failed += 1
+        self.flash(f"Скопировано файлов: {copied}"
+                   + (f", не удалось: {failed}" if failed else ""))
