@@ -16,8 +16,18 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 
 RUNTIME = ROOT / "runtime"
-PYTHON = RUNTIME / "python" / "python.exe"
-SITE_PACKAGES = RUNTIME / "python" / "Lib" / "site-packages"
+_VENV = RUNTIME / "python"
+
+# A virtual environment keeps its executables in Scripts\; a plain install puts
+# them next to the folder root. Both layouts are accepted so the bootstrap is
+# free to pick whichever route worked on this particular machine.
+PYTHON = (_VENV / "Scripts" / "python.exe" if (_VENV / "Scripts").is_dir()
+          else _VENV / "python.exe")
+PYTHONW = PYTHON.with_name("pythonw.exe")
+
+# Heavy packages live outside the interpreter on purpose: rebuilding the
+# environment then costs seconds instead of re-downloading four gigabytes.
+PACKAGES = RUNTIME / "packages"
 BIN = RUNTIME / "bin"
 FFMPEG = BIN / "ffmpeg.exe"
 FFPROBE = BIN / "ffprobe.exe"
@@ -94,7 +104,7 @@ VERSION = read_version()
 
 
 def ensure_dirs() -> None:
-    for path in (RUNTIME, BIN, MODELS, LOGS, DATA, SESSIONS, TEMP):
+    for path in (RUNTIME, BIN, PACKAGES, MODELS, LOGS, DATA, SESSIONS, TEMP):
         path.mkdir(parents=True, exist_ok=True)
 
 
@@ -126,9 +136,13 @@ def enable_local_packages() -> None:
     directories have to be registered explicitly or the GPU path fails with an
     unhelpful import error.
     """
+    package_root = str(PACKAGES)
+    if package_root not in sys.path:
+        sys.path.insert(0, package_root)
+
     if sys.platform != "win32":
         return
-    nvidia_root = SITE_PACKAGES / "nvidia"
+    nvidia_root = PACKAGES / "nvidia"
     if not nvidia_root.is_dir():
         return
     for bin_dir in sorted(nvidia_root.glob("*/bin")):

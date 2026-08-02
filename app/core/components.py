@@ -45,7 +45,8 @@ def _pip(packages: list[str], log: Log) -> None:
     """Install into the private interpreter, streaming pip's own output."""
     command = [str(env.PYTHON), "-m", "pip", "install",
                "--disable-pip-version-check", "--no-warn-script-location",
-               "--no-input", *packages]
+               "--no-input", "--upgrade",
+               "--target", str(env.PACKAGES), *packages]
     process = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, encoding="utf-8", errors="replace", bufsize=1,
@@ -210,7 +211,7 @@ class CudaComponent(Component):
         )
 
     def check(self) -> tuple[str, str]:
-        root = env.SITE_PACKAGES / "nvidia"
+        root = env.PACKAGES / "nvidia"
         has_cublas = (root / "cublas" / "bin").is_dir()
         has_cudnn = (root / "cudnn" / "bin").is_dir()
         if has_cublas and has_cudnn:

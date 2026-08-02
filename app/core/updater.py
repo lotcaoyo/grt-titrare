@@ -152,9 +152,7 @@ def _installed_version() -> str:
 
 def restart() -> None:
     """Start the freshly installed code and let this process go."""
-    executable = env.RUNTIME / "python" / "pythonw.exe"
-    if not executable.exists():
-        executable = Path(sys.executable)
+    executable = env.PYTHONW if env.PYTHONW.exists() else Path(sys.executable)
     entry = env.ROOT / "app" / "main.py"
     try:
         subprocess.Popen([str(executable), str(entry)],
