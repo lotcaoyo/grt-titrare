@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import env, gpu
+from . import env, gpu, shortcut
 
 Progress = Callable[[float, str], None]   # 0..1 (negative = indeterminate), caption
 Log = Callable[[str], None]
@@ -422,13 +422,40 @@ class _EmptyTermbase:
         return text
 
 
+class ShortcutComponent(Component):
+    def __init__(self) -> None:
+        super().__init__(
+            key="shortcut",
+            title="Ярлык на рабочем столе",
+            note="Запуск в один клик, с иконкой приложения",
+            size="",
+        )
+
+    def check(self) -> tuple[str, str]:
+        if sys.platform != "win32":
+            return BLOCKED, "Только для Windows"
+        link = shortcut.existing()
+        if link:
+            return READY, f"Создан: {link.name}"
+        return MISSING, "Не создан"
+
+    def install(self, progress: Progress, log: Log) -> None:
+        progress(-1, "Создаю ярлык")
+        link = shortcut.create()
+        if link is None:
+            raise RuntimeError("Не удалось создать ярлык")
+        log(f"Ярлык: {link}")
+        progress(1.0, "Готово")
+
+
 def all_components() -> list[Component]:
     return [DriverComponent(), FfmpegComponent(), EngineComponent(),
-            CudaComponent(), ModelComponent(), SelfTestComponent()]
+            CudaComponent(), ModelComponent(), SelfTestComponent(),
+            ShortcutComponent()]
 
 
 def ready_to_work(components: list[Component]) -> bool:
     """Blocked components are warnings, not stoppers — the CPU path still works."""
-    required = {"ffmpeg", "engine", "model"}
+    required = {"ffmpeg", "engine", "model"}   # a shortcut is convenience
     return all(component.check()[0] == READY
                for component in components if component.key in required)

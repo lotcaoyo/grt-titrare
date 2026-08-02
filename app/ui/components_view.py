@@ -319,7 +319,8 @@ class ComponentsView(tk.Frame):
     def _install_all(self) -> None:
         if self._queue:
             return
-        order = {"ffmpeg": 0, "engine": 1, "cuda": 2, "model": 3, "selftest": 9}
+        order = {"ffmpeg": 0, "engine": 1, "cuda": 2, "model": 3,
+                 "shortcut": 8, "selftest": 9}
         pending = [row for row in self.rows
                    if row.component.installable
                    and (self.states.get(row.component.key, ("", ""))[0] != comp.READY

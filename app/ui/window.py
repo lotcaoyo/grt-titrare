@@ -11,7 +11,7 @@ import re
 import threading
 import tkinter as tk
 
-from ..core import env, gpu, pipeline, updater
+from ..core import env, gpu, pipeline, shortcut, updater
 from . import theme
 from .archive_view import ArchiveView
 from .components_view import ComponentsView
@@ -39,6 +39,7 @@ class App(_Base):
         env.enable_local_packages()
 
         self.title("GRT Titrare")
+        self._apply_icon()
         self.geometry("900x720")
         self.minsize(780, 580)
         self.configure(bg=theme.BG)
@@ -68,9 +69,28 @@ class App(_Base):
         self.show("components")
 
         self.engine.start()
+        shortcut.ensure_once()
         self.protocol("WM_DELETE_WINDOW", self._close)
         self.after(200, self._tick)
         self.after(1200, self._check_update)
+
+    def _apply_icon(self) -> None:
+        """iconbitmap sets the window and taskbar icon on Windows; iconphoto
+        is the fallback everywhere else. Neither is worth crashing over."""
+        ico = env.ROOT / "assets" / "icon.ico"
+        png = env.ROOT / "assets" / "icon.png"
+        try:
+            if ico.exists():
+                self.iconbitmap(default=str(ico))
+                return
+        except tk.TclError:
+            pass
+        try:
+            if png.exists():
+                self._icon_image = tk.PhotoImage(file=str(png))
+                self.iconphoto(True, self._icon_image)
+        except tk.TclError:
+            pass
 
     # -- chrome ------------------------------------------------------------- #
 
