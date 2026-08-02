@@ -118,6 +118,17 @@ def local() -> Path:
 ICON_STAMP = "exe-v12"       # bump when the icon changes
 
 
+def ensure() -> tuple[Path | None, Path | None]:
+    """Runs at every start and costs nothing when everything is in place.
+
+    The link inside the application folder is restored whenever it is missing:
+    unlike the one on the desktop, nobody deletes it on purpose, and without it
+    the folder has nothing to click."""
+    own = launcher.ensure()
+    in_folder = local() if local().exists() else create_local()
+    return own, in_folder
+
+
 def ensure_once() -> Path | None:
     """Create the shortcut on first run, and refresh it when the icon changes.
 

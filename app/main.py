@@ -71,10 +71,18 @@ def _report(error: BaseException) -> None:
 
 def main() -> int:
     try:
-        from app.core import env, housekeeping
+        from app.core import env, housekeeping, shortcut
         env.ensure_dirs()
         env.enable_local_packages()
         housekeeping.run()
+
+        # Executable and in-folder shortcut are prepared before the interface:
+        # they must exist even if the window itself fails to come up.
+        try:
+            shortcut.ensure()
+        except Exception:      # noqa: BLE001 - convenience, never fatal
+            pass
+
         from app.ui.window import App
         App().mainloop()
         return 0

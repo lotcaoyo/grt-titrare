@@ -35,6 +35,11 @@ if errorlevel 1 (
     exit /b 1
 )
 
+rem Build the executable and the in-folder shortcut before deciding what to
+rem launch: on a fresh copy neither exists yet, and waiting for the app to
+rem create them means waiting for something that cannot start.
+if exist "%PYC%" "%PYC%" -c "import sys; sys.path.insert(0,'.'); from app.core import shortcut; shortcut.ensure()" >nul 2>&1
+
 rem Prefer our own executable: Windows takes the taskbar and pin icon from the
 rem running .exe, and pythonw.exe carries the Python logo.
 set "PY=runtime\python\Scripts\GRT Titrare.exe"
