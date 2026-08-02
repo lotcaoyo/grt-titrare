@@ -151,6 +151,7 @@ class Pipeline:
 
     def _reset(self, job: Job) -> None:
         job.state = QUEUED
+        job.stale = False       # a fresh run is never the old version's output
         job.progress = 0.0
         job.detail = ""
         job.sentences = []

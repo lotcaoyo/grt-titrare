@@ -134,12 +134,18 @@ class JobCard(tk.Frame):
         else:
             self.progress.set(0.0)
 
-        if job.state == pipeline.AWAITING:
+        if job.state == pipeline.AWAITING and job.stale:
             self._set_actions([
-                ("Распознать заново" if job.stale else "Перевести",
-                 self._retry if job.stale else self._translate, "primary"),
-                ("Перевести как есть", self._translate, "quiet") if job.stale
-                else ("Расшифровка", self._show_transcript, "quiet"),
+                ("Распознать заново", self._retry, "primary"),
+                ("Перевести как есть", self._translate, "quiet"),
+                ("Расшифровка", self._show_transcript, "quiet"),
+                ("Убрать", self._remove, "quiet"),
+            ])
+        elif job.state == pipeline.AWAITING:
+            self._set_actions([
+                ("Перевести", self._translate, "primary"),
+                ("Расшифровка", self._show_transcript, "quiet"),
+                ("Распознать заново", self._retry, "quiet"),
                 ("Убрать", self._remove, "quiet"),
             ])
         elif job.state == pipeline.DONE:
