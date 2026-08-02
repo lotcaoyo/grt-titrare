@@ -427,6 +427,7 @@ class Pipeline:
             pass
 
     def _restore(self) -> None:
+        archive.backfill_from_sessions()
         if not env.SESSIONS.exists():
             return
         termbase = Termbase.load()

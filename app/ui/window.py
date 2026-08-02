@@ -26,7 +26,7 @@ except Exception:                       # noqa: BLE001
     DND_FILES = None
     _DND = False
 
-TABS = (("work", "Титры"), ("archive", "Готово"), ("components", "Компоненты"))
+TABS = (("components", "Компоненты"), ("work", "Титры"), ("archive", "Готово"))
 
 # Windows hands over dropped paths as {C:/with spaces/a.mp4} C:/b.mp4
 DROP_ITEM = re.compile(r"\{([^}]*)\}|(\S+)")

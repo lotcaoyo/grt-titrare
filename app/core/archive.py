@@ -100,6 +100,56 @@ def items(include_missing: bool = False) -> list[Entry]:
     return [e for e in entries if e.exists]
 
 
+def ensure(name: str, path: Path, cues: int, source: str = "",
+           created: str = "") -> bool:
+    """Add only if this file is not indexed yet. Returns True when added."""
+    entries = _load()
+    if any(e.path == path for e in entries):
+        return False
+    entries.insert(0, Entry(
+        name=name, path=path,
+        created=created or datetime.now().isoformat(timespec="seconds"),
+        cues=cues, source=source))
+    entries.sort(key=lambda e: e.created, reverse=True)
+    _store(entries[:500])
+    return True
+
+
+def count_cues(path: Path) -> int:
+    """Cheap enough: an .srt is a few dozen kilobytes of text."""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace").count(" --> ")
+    except OSError:
+        return 0
+
+
+def backfill_from_sessions() -> int:
+    """Pick up subtitle files produced before this register existed.
+
+    A tool that quietly forgets yesterday's work is worse than one that never
+    had a list, so the sessions on disk are treated as the source of truth and
+    the index is rebuilt from them."""
+    added = 0
+    if not env.SESSIONS.exists():
+        return 0
+    for session in env.SESSIONS.glob("*.json"):
+        try:
+            data = json.loads(session.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        srt = data.get("srt")
+        if not srt:
+            continue
+        path = Path(srt)
+        if not path.is_file():
+            continue
+        if ensure(name=data.get("name") or path.stem, path=path,
+                  cues=count_cues(path), source=data.get("source", ""),
+                  created=data.get("saved", "")):
+            added += 1
+    return added
+
+
 def forget(path: Path) -> None:
     _store([e for e in _load() if e.path != path])
 
