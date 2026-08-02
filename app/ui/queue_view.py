@@ -16,6 +16,7 @@ from tkinter import filedialog
 
 from ..core import env, pipeline
 from . import theme
+from .terms_dialog import TermsDialog
 from .translate_dialog import TranslateDialog
 
 STATE_COLOURS = {
@@ -142,17 +143,18 @@ class JobCard(tk.Frame):
                 ("Убрать", self._remove, "quiet"),
             ])
         elif job.state == pipeline.AWAITING:
+            terms = (f"Термины ({len(job.terms)})" if job.terms else "Термины")
             self._set_actions([
                 ("Перевести", self._translate, "primary"),
+                (terms, self._edit_terms, "secondary"),
                 ("Расшифровка", self._show_transcript, "quiet"),
-                ("Распознать заново", self._retry, "quiet"),
                 ("Убрать", self._remove, "quiet"),
             ])
         elif job.state == pipeline.DONE:
             self._set_actions([
                 ("Открыть титры", self._open_srt, "secondary"),
                 ("Сверка RU / RO", self._show_review, "quiet"),
-                ("Распознать заново", self._retry, "quiet"),
+                ("Проверка", self._show_log, "quiet"),
                 ("Убрать", self._remove, "quiet"),
             ])
         elif job.state == pipeline.FAILED:
@@ -168,6 +170,9 @@ class JobCard(tk.Frame):
 
     def _translate(self) -> None:
         TranslateDialog(self.winfo_toplevel(), self.view.engine, self.job)
+
+    def _edit_terms(self) -> None:
+        TermsDialog(self.winfo_toplevel(), self.view.engine, self.job)
 
     def _show_transcript(self) -> None:
         text = "\n".join(f"[{s.index}] {s.text}" for s in self.job.sentences)

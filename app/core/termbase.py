@@ -129,6 +129,52 @@ class Termbase:
         return re.search(rf"\b{re.escape(stem)}\w*", lowered) is not None
 
 
+def with_extra(base: "Termbase", extra: dict[str, str]) -> "Termbase":
+    """Film-specific terms win over the shared base."""
+    return Termbase({**base.pairs, **{k: v for k, v in extra.items() if k and v}})
+
+
+PROPER_NOUN = re.compile(r"\b[А-ЯЁ][а-яё]{2,}(?:-[А-ЯЁа-яё]{2,})?\b")
+
+COMMON_OPENERS = {
+    "Однако", "Этот", "Эта", "Это", "Эти", "Когда", "Если", "Пока", "Ведь",
+    "Здесь", "Там", "Как", "Что", "Кто", "Все", "Весь", "Вся", "Они", "Она",
+    "Оно", "Его", "Ему", "Ими", "Так", "Даже", "Затем", "Потом", "Поэтому",
+    "Сегодня", "Вчера", "Завтра", "Первые", "Второй", "Третий", "Больше",
+    "Меньше", "Один", "Одна", "Одно", "Другой", "Другая", "Каждый", "Только",
+    "Именно", "Почти", "Более", "Около", "После", "Перед", "Через", "Между",
+    "Кроме", "Ради", "Возле", "Вдали", "Слева", "Справа", "Сама", "Сам",
+    "Самка", "Самец", "Самые", "Самый", "Самая",
+}
+
+
+def candidates(text: str, known: dict[str, str], limit: int = 40) -> list[str]:
+    """Proper nouns worth pinning down before translation.
+
+    A name that appears once is exactly the kind the translator will render
+    differently the second time. Collecting them up front turns consistency
+    from a matter of care into a matter of the list being filled in.
+    """
+    known_stems = {w.lower() for phrase in known for w in re.findall(r"\w+", phrase)}
+    counts: dict[str, int] = {}
+    mid_sentence: set[str] = set()
+
+    for sentence in re.split(r"(?<=[.!?…])\s+", text):
+        for match in PROPER_NOUN.finditer(sentence):
+            word = match.group(0)
+            if word in COMMON_OPENERS or word.lower() in known_stems:
+                continue
+            counts[word] = counts.get(word, 0) + 1
+            if match.start() > 0:
+                mid_sentence.add(word)
+
+    # A capitalised word that only ever opens a sentence is just a sentence
+    # opener, not a name.
+    picked = [w for w in counts if w in mid_sentence]
+    picked.sort(key=lambda w: (-counts[w], w))
+    return picked[:limit]
+
+
 def normalise_romanian(text: str) -> str:
     for wrong, right in CEDILLA_FIX.items():
         text = text.replace(wrong, right)

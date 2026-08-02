@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import asr, env, subtitles
+from . import termbase as tb_module
 from .termbase import Termbase
 
 QUEUED = "queued"
@@ -69,6 +70,7 @@ class Job:
     sentences: list[asr.Sentence] = field(default_factory=list)
     parts: list[str] = field(default_factory=list)      # ready-to-copy prompts
     translated: dict[int, str] = field(default_factory=dict)
+    terms: dict[str, str] = field(default_factory=dict)   # this film only
     srt_path: Path | None = None
     review: str = ""
     stale: bool = False
@@ -93,6 +95,10 @@ class Job:
 
     def missing(self) -> list[int]:
         return sorted({s.index for s in self.sentences} - set(self.translated))
+
+    @property
+    def transcript(self) -> str:
+        return " ".join(s.text for s in self.sentences)
 
 
 class Pipeline:
@@ -159,12 +165,22 @@ class Pipeline:
         job.translated.clear()
         job.review = ""
         job.speed = 0.0
+        # terms survive a re-run on purpose: they are the user's work, not
+        # the recogniser's output
 
     def remove(self, job: Job) -> None:
         with self._lock:
             if job in self.jobs:
                 self.jobs.remove(job)
         (env.SESSIONS / f"{job.key}.json").unlink(missing_ok=True)
+        self.notify()
+
+    def refresh_terms(self, job: Job) -> None:
+        """Rebuild the prompts so the new terms are already inside the text
+        the user is about to copy."""
+        if job.sentences:
+            job.parts = self._build_prompts(job, Termbase.load())
+        self._save(job)
         self.notify()
 
     def retry(self, job: Job) -> None:
@@ -254,16 +270,19 @@ class Pipeline:
         return f"{seconds / 60:.0f} мин"
 
     def _build_prompts(self, job: Job, termbase: Termbase) -> list[str]:
+        termbase = tb_module.with_extra(termbase, job.terms)
         chunk = int(env.load_config()["translation"]["chunk_size"])
         prompts: list[str] = []
         for start in range(0, len(job.sentences), chunk):
             part = job.sentences[start:start + chunk]
             body = "\n".join(f"[{s.index}] {s.text}" for s in part)
             reference = termbase.translation_reference(body)
+            reference.update({k: v for k, v in job.terms.items() if k and v})
             terms = ""
             if reference:
-                listed = "\n".join(f"{k} = {v}" for k, v in reference.items())
-                terms = f"Названия и имена:\n{listed}\n\n"
+                listed = "\n".join(f"{k} = {v}" for k, v in sorted(reference.items()))
+                terms = ("Названия и имена — используй строго эти формы "
+                         "во всех строках:\n" + listed + "\n\n")
             genre = str(env.load_config()["translation"].get("genre", "") or "")
             prompts.append(PROMPT_TEMPLATE.format(
                 genre=f" Материал: {genre}." if genre else "",
@@ -299,7 +318,7 @@ class Pipeline:
         job.detail = "Собираю титры"
         self.notify()
         try:
-            termbase = Termbase.load()
+            termbase = tb_module.with_extra(Termbase.load(), job.terms)
             spans = {s.index: (s.text, s.start, s.end) for s in job.sentences}
             order = sorted(spans)
 
@@ -314,6 +333,7 @@ class Pipeline:
             subtitles.write_srt(cues, target)
 
             problems = subtitles.validate(cues)
+            problems += self._verify_terms(job, spans, order)
             job.srt_path = target
             job.review = subtitles.review_text(pairs, russian)
             job.state = DONE
@@ -329,6 +349,37 @@ class Pipeline:
             job.log.append(traceback.format_exc(limit=4))
         finally:
             self.notify()
+
+    def _verify_terms(self, job: Job, spans: dict, order: list[int]) -> list[str]:
+        """Catch a name that came back in two different shapes.
+
+        Consistency is checked mechanically rather than by eye: for every term
+        the film declares, each line whose Russian side contains it must carry
+        the agreed Romanian form."""
+        if not job.terms:
+            return []
+        found: list[str] = []
+        for source, target in job.terms.items():
+            if not source or not target:
+                continue
+            pattern = tb_module._stem_pattern(source)
+            if pattern is None:
+                continue
+            # Romanian inflects the ending, so the target is matched by its
+            # stem: Sumatrei must count as Sumatra, not as a discrepancy.
+            needle = target.lower()
+            if len(needle) > 5 and needle[-1] in "aeiou":
+                needle = needle[:-1]
+            misses = [i for i in order
+                      if pattern.search(spans[i][0].lower())
+                      and needle not in job.translated.get(i, "").lower()]
+            if misses:
+                shown = ", ".join(str(m) for m in misses[:8])
+                found.append(f"«{source}» → «{target}»: не найдено в строках "
+                             f"{shown}{' и др.' if len(misses) > 8 else ''}")
+        if found:
+            found.insert(0, "Расхождения в терминах:")
+        return found
 
     @staticmethod
     def _parse(text: str) -> dict[int, str]:
@@ -367,6 +418,7 @@ class Pipeline:
                                "start": round(s.start, 3), "end": round(s.end, 3)}
                               for s in job.sentences],
                 "translated": {str(k): v for k, v in job.translated.items()},
+                "terms": job.terms,
             }
             (env.SESSIONS / f"{job.key}.json").write_text(
                 json.dumps(payload, ensure_ascii=False), encoding="utf-8")
@@ -392,6 +444,7 @@ class Pipeline:
                              for s in data.get("sentences", [])]
             job.translated = {int(k): v
                               for k, v in (data.get("translated") or {}).items()}
+            job.terms = dict(data.get("terms") or {})
             if data.get("srt"):
                 job.srt_path = Path(data["srt"])
             if job.state == AWAITING and job.sentences:

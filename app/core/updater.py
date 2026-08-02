@@ -132,8 +132,10 @@ def install(progress: Callable[[float, str], None],
 
         # manifest.json carries the version, so it must travel with the code:
         # without it the app would keep believing it is still on the old build.
+        # File names stay ASCII: Git on Windows escapes anything else, and the
+        # repository then shows unreadable rubbish instead of the file name.
         for extra in ("manifest.json", "GRT Titrare.bat",
-                      "bootstrap.ps1", "ЧИТАТЬ.txt"):
+                      "bootstrap.ps1", "README.md"):
             incoming = source_root / extra
             if incoming.exists():
                 shutil.copy2(incoming, env.ROOT / extra)
