@@ -19,10 +19,14 @@ from . import env, launcher
 ICON = env.ASSETS / env.ICON_NAME
 NAME = "GRT Titrare"
 
+# The executable is a copy of the interpreter: on its own, with no script to
+# run, it starts and exits immediately. A shortcut supplies that argument, so
+# one lives next to the application as well as on the desktop.
+
 _SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
-$desktop = [Environment]::GetFolderPath('Desktop')
-$link = Join-Path $desktop '{name}.lnk'
+$folder = '{folder}'
+$link = Join-Path $folder '{name}.lnk'
 if (Test-Path $link) {{ Remove-Item $link -Force }}
 $shell = New-Object -ComObject WScript.Shell
 $s = $shell.CreateShortcut($link)
@@ -36,8 +40,8 @@ Write-Output $link
 """
 
 _FIND = r"""
-$desktop = [Environment]::GetFolderPath('Desktop')
-$link = Join-Path $desktop '{name}.lnk'
+$folder = [Environment]::GetFolderPath('Desktop')
+$link = Join-Path $folder '{name}.lnk'
 if (Test-Path $link) {{ Write-Output $link }}
 """
 
@@ -78,13 +82,14 @@ def existing() -> Path | None:
     return Path(found) if found else None
 
 
-def create() -> Path | None:
+def _create_in(folder: str) -> Path | None:
     if sys.platform != "win32":
         return None
     target, arguments = _target()
     icon = ICON if ICON.exists() else target
 
     script = _SCRIPT.format(
+        folder=folder.replace("'", "''"),
         name=NAME,
         target=str(target).replace("'", "''"),
         arguments=(f'"{arguments}"' if arguments else "").replace("'", "''"),
@@ -93,6 +98,21 @@ def create() -> Path | None:
     )
     result = _powershell(script)
     return Path(result) if result else None
+
+
+def create() -> Path | None:
+    """Desktop."""
+    desktop = _powershell("Write-Output ([Environment]::GetFolderPath('Desktop'))")
+    return _create_in(desktop) if desktop else None
+
+
+def create_local() -> Path | None:
+    """Next to the application, so the folder itself has something to click."""
+    return _create_in(str(env.ROOT))
+
+
+def local() -> Path:
+    return env.ROOT / f"{NAME}.lnk"
 
 
 ICON_STAMP = "exe-v12"       # bump when the icon changes
@@ -116,6 +136,7 @@ def ensure_once() -> Path | None:
         if existing() is None:
             return None            # deleted on purpose, leave it that way
     link = create()
+    create_local()
     try:
         env.DATA.mkdir(parents=True, exist_ok=True)
         marker.write_text(f"{ICON_STAMP}\n{link or 'не создан'}",

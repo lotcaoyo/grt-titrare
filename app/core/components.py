@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import env, gpu, shortcut
+from . import env, gpu, launcher, shortcut
 
 Progress = Callable[[float, str], None]   # 0..1 (negative = indeterminate), caption
 Log = Callable[[str], None]
@@ -434,17 +434,32 @@ class ShortcutComponent(Component):
     def check(self) -> tuple[str, str]:
         if sys.platform != "win32":
             return BLOCKED, "Только для Windows"
-        link = shortcut.existing()
-        if link:
-            return READY, f"Создан: {link.name}"
-        return MISSING, "Не создан"
+        on_desktop = shortcut.existing() is not None
+        in_folder = shortcut.local().exists()
+        own_exe = launcher.path().exists()
+
+        parts = []
+        parts.append("на рабочем столе" if on_desktop else "нет на рабочем столе")
+        parts.append("в папке приложения" if in_folder else "нет в папке")
+        parts.append("свой значок" if own_exe else "значок Python")
+
+        if on_desktop and in_folder and own_exe:
+            return READY, "Есть " + ", ".join(parts[:2]) + ", " + parts[2]
+        return MISSING, "Не хватает: " + ", ".join(
+            p for p in parts if p.startswith("нет") or p == "значок Python")
 
     def install(self, progress: Progress, log: Log) -> None:
-        progress(-1, "Создаю ярлык")
-        link = shortcut.create()
-        if link is None:
-            raise RuntimeError("Не удалось создать ярлык")
-        log(f"Ярлык: {link}")
+        progress(-1, "Готовлю исполняемый файл")
+        own = launcher.ensure()
+        log(f"Исполняемый файл: {own or 'не создан, останусь на pythonw'}")
+
+        progress(-1, "Создаю ярлыки")
+        desktop = shortcut.create()
+        folder = shortcut.create_local()
+        if desktop is None and folder is None:
+            raise RuntimeError("Не удалось создать ни одного ярлыка")
+        log(f"Рабочий стол: {desktop or 'не создан'}")
+        log(f"Папка приложения: {folder or 'не создан'}")
         progress(1.0, "Готово")
 
 
