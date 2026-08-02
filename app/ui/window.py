@@ -56,7 +56,7 @@ class App(_Base):
 
         self.views = {
             "work": QueueView(self.container, self.engine),
-            "archive": ArchiveView(self.container),
+            "archive": ArchiveView(self.container, self.engine),
             "components": ComponentsView(self.container, self._on_components,
                                          self._after_first_scan),
         }

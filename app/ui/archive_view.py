@@ -13,7 +13,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog
 
-from ..core import archive
+from ..core import archive, pipeline
 from . import theme
 from .queue_view import TextWindow, open_file, reveal
 
@@ -34,25 +34,37 @@ class ArchiveRow(tk.Frame):
         labels = tk.Frame(top, bg=theme.BG)
         labels.pack(side="left", fill="x", expand=True)
         theme.body(labels, f"{entry.name}.srt", theme.TEXT, 12).pack(fill="x")
-        theme.body(labels,
-                   f"{entry.cues} титров · {entry.size_kb:.0f} КБ · {entry.when}",
-                   theme.MUTED, 10).pack(fill="x", pady=(3, 0))
+        if entry.exists:
+            detail = f"{entry.cues} титров · {entry.size_kb:.0f} КБ"
+            if entry.when:
+                detail += f" · {entry.when}"
+            theme.body(labels, detail, theme.MUTED, 10).pack(fill="x", pady=(3, 0))
+        else:
+            theme.body(labels, f"Файл не найден: {entry.path}",
+                       theme.RED, 10, wrap=520).pack(fill="x", pady=(3, 0))
 
         theme.body(top, str(entry.path.parent), theme.FAINT, 9).pack(
             side="right", pady=(4, 0))
 
         actions = tk.Frame(card, bg=theme.BG)
         actions.pack(fill="x", padx=14, pady=(8, 0))
-        for label, command, kind in (
-            ("Посмотреть", self._view, "secondary"),
-            ("Открыть", self._open, "quiet"),
-            ("Показать файл", self._reveal, "quiet"),
-            ("Сохранить копию", self._save_copy, "quiet"),
-        ):
+        buttons = (
+            (("Посмотреть", self._view, "secondary"),
+             ("Открыть", self._open, "quiet"),
+             ("Показать файл", self._reveal, "quiet"),
+             ("Сохранить копию", self._save_copy, "quiet"))
+            if entry.exists else
+            (("Убрать из списка", self._forget, "quiet"),)
+        )
+        for label, command, kind in buttons:
             theme.Button(actions, label, command, kind=kind).pack(
                 side="left", padx=(4, 0))
 
         tk.Frame(card, bg=theme.BG, height=14).pack(fill="x")
+
+    def _forget(self) -> None:
+        archive.forget(self.entry.path)
+        self.view.refresh()
 
     def _view(self) -> None:
         TextWindow(self.winfo_toplevel(), f"{self.entry.name}.srt",
@@ -79,8 +91,10 @@ class ArchiveRow(tk.Frame):
 
 
 class ArchiveView(tk.Frame):
-    def __init__(self, parent: tk.Misc) -> None:
+    def __init__(self, parent: tk.Misc,
+                 engine: pipeline.Pipeline | None = None) -> None:
         super().__init__(parent, bg=theme.BG)
+        self.engine = engine
         self.entries: list[archive.Entry] = []
 
         header = tk.Frame(self, bg=theme.BG)
@@ -114,7 +128,27 @@ class ArchiveView(tk.Frame):
     # -- data ---------------------------------------------------------------- #
 
     def refresh(self) -> None:
-        self.entries = archive.items()
+        """Two sources, deliberately.
+
+        The register survives restarts, the queue knows what was finished in
+        this session. Merging them means a file can never be finished on one
+        tab and invisible on the other, whatever went wrong with the index."""
+        entries = {e.path: e for e in archive.items(include_missing=True)}
+
+        if self.engine is not None:
+            for job in self.engine.jobs:
+                if job.state != pipeline.DONE or not job.srt_path:
+                    continue
+                if job.srt_path in entries:
+                    continue
+                cues = archive.count_cues(job.srt_path)
+                archive.ensure(job.name, job.srt_path, cues, str(job.source))
+                entries[job.srt_path] = archive.Entry(
+                    name=job.name, path=job.srt_path,
+                    created="", cues=cues, source=str(job.source))
+
+        self.entries = sorted(entries.values(),
+                              key=lambda e: (e.exists, e.created), reverse=True)
         self._render()
 
     def _render(self) -> None:
@@ -154,7 +188,8 @@ class ArchiveView(tk.Frame):
     def _collect(self) -> None:
         """Copy the whole visible batch into one folder, keeping film names."""
         needle = self.query.get().strip().lower()
-        shown = [e for e in self.entries if needle in e.name.lower()]
+        shown = [e for e in self.entries
+                 if needle in e.name.lower() and e.exists]
         if not shown:
             self.flash("Нечего собирать")
             return
