@@ -86,7 +86,14 @@ def _create_in(folder: str) -> Path | None:
     if sys.platform != "win32":
         return None
     target, arguments = _target()
-    icon = ICON if ICON.exists() else target
+
+    # Иконка берётся из самого .exe, а не из отдельного файла. Так рабочий
+    # стол, панель задач и закреплённый элемент читают одну и ту же картинку
+    # и не могут разойтись: расходиться нечему.
+    if target.suffix.lower() == ".exe":
+        icon_location = f"{target},0"
+    else:
+        icon_location = str(ICON if ICON.exists() else target)
 
     script = _SCRIPT.format(
         folder=folder.replace("'", "''"),
@@ -94,7 +101,7 @@ def _create_in(folder: str) -> Path | None:
         target=str(target).replace("'", "''"),
         arguments=(f'"{arguments}"' if arguments else "").replace("'", "''"),
         workdir=str(env.ROOT).replace("'", "''"),
-        icon=str(icon).replace("'", "''"),
+        icon=icon_location.replace("'", "''"),
     )
     result = _powershell(script)
     return Path(result) if result else None
@@ -115,7 +122,7 @@ def local() -> Path:
     return env.ROOT / f"{NAME}.lnk"
 
 
-ICON_STAMP = "exe-v12"       # bump when the icon changes
+ICON_STAMP = "exe-v14"       # bump when the icon changes
 
 
 def ensure() -> tuple[Path | None, Path | None]:
