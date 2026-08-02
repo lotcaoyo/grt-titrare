@@ -79,10 +79,11 @@ class App(_Base):
         is the fallback everywhere else. Neither is worth crashing over."""
         ico = env.ROOT / "assets" / "icon.ico"
         png = env.ROOT / "assets" / "icon.png"
+        # Both are set on purpose: iconbitmap drives the title bar, iconphoto
+        # is what several Windows builds read for the taskbar button.
         try:
             if ico.exists():
                 self.iconbitmap(default=str(ico))
-                return
         except tk.TclError:
             pass
         try:

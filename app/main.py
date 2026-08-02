@@ -22,6 +22,28 @@ for _stream in ("stdout", "stderr"):
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+APP_ID = "GRT.Titrare"
+
+
+def _claim_taskbar_identity() -> None:
+    """Make Windows treat this as its own application, not as Python.
+
+    A window started by pythonw.exe is grouped under the interpreter, and the
+    taskbar shows the Python logo no matter what icon the window carries. An
+    explicit AppUserModelID breaks that association, and must be set before the
+    first window exists.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
+    except Exception:      # noqa: BLE001 - cosmetic, never worth a crash
+        pass
+
+
+_claim_taskbar_identity()
+
 
 def _report(error: BaseException) -> None:
     from app.core import env
