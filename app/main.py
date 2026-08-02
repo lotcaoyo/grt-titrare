@@ -49,9 +49,10 @@ def _report(error: BaseException) -> None:
 
 def main() -> int:
     try:
-        from app.core import env
+        from app.core import env, housekeeping
         env.ensure_dirs()
         env.enable_local_packages()
+        housekeeping.run()
         from app.ui.window import App
         App().mainloop()
         return 0
