@@ -20,6 +20,11 @@ from . import env
 # Renamed in 1.1.1 — the Cyrillic name displayed as mojibake in Git.
 OBSOLETE_FILES = ("ЧИТАТЬ.txt",)
 
+# Matching by name is not enough: Git on Windows can check the file out with
+# mangled bytes, so the name on disk is no longer the name that was committed.
+# The first line of the old file is stable whatever happened to its name.
+OBSOLETE_MARKER = "GRT TITRARE"
+
 # Left behind by the silent Python installer when the target placeholder was
 # not substituted.
 OBSOLETE_DIRS = ("{app}", "{app")
@@ -50,6 +55,19 @@ def run() -> list[str]:
                 removed.append(name)
             except OSError:
                 pass
+
+    # Same file, unreadable name. Identified by what is inside it, and only
+    # inside the package root — never in folders that hold the user's work.
+    for candidate in env.ROOT.glob("*.txt"):
+        try:
+            if candidate.stat().st_size > 64_000:
+                continue
+            head = candidate.read_text(encoding="utf-8", errors="replace")
+            if head.lstrip().upper().startswith(OBSOLETE_MARKER):
+                candidate.unlink()
+                removed.append(candidate.name)
+        except OSError:
+            continue
 
     for name in OBSOLETE_DIRS:
         target = env.ROOT / name
