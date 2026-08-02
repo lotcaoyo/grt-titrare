@@ -8,6 +8,7 @@ entire class of race conditions.
 from __future__ import annotations
 
 import re
+import sys
 import threading
 import tkinter as tk
 
@@ -79,13 +80,17 @@ class App(_Base):
         is the fallback everywhere else. Neither is worth crashing over."""
         ico = env.ROOT / "assets" / "icon.ico"
         png = env.ROOT / "assets" / "icon.png"
-        # Both are set on purpose: iconbitmap drives the title bar, iconphoto
-        # is what several Windows builds read for the taskbar button.
-        try:
-            if ico.exists():
+
+        # On Windows the .ico is the only right answer: it carries ten sizes
+        # drawn for their exact pixel count. Adding iconphoto on top hands the
+        # system a single 256px bitmap and lets it squash that down instead,
+        # which is what made the taskbar icon look blurred.
+        if sys.platform == "win32" and ico.exists():
+            try:
                 self.iconbitmap(default=str(ico))
-        except tk.TclError:
-            pass
+                return
+            except tk.TclError:
+                pass
         try:
             if png.exists():
                 self._icon_image = tk.PhotoImage(file=str(png))

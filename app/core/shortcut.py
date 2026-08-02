@@ -88,7 +88,7 @@ def create() -> Path | None:
     return Path(result) if result else None
 
 
-ICON_STAMP = "icon-3"       # bump when the icon changes
+ICON_STAMP = "icon-4"       # bump when the icon changes
 
 
 def ensure_once() -> Path | None:
