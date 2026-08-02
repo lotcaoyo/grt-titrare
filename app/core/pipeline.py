@@ -45,7 +45,7 @@ STATE_LABELS = {
 NUMBERED = re.compile(r"^\s*\**\s*\[?(\d{1,4})\]?\s*[.)\]:]?\s*\**\s*(.*)$")
 
 PROMPT_TEMPLATE = """\
-Переведи на румынский язык субтитры новостного репортажа.
+Переведи на румынский язык субтитры для телеэфира.{genre}
 
 Требования:
 1. Сохрани нумерацию ровно в том же виде: [1], [2], [3] и так далее.
@@ -72,6 +72,7 @@ class Job:
     srt_path: Path | None = None
     review: str = ""
     duration: float = 0.0
+    speed: float = 0.0
     started: float = 0.0
     log: list[str] = field(default_factory=list)
 
@@ -197,20 +198,25 @@ class Pipeline:
                 elapsed = time.time() - job.started
                 if value > 0.02 and job.duration:
                     speed = (value * job.duration) / max(elapsed, 0.1)
+                    job.speed = speed
                     left = (1 - value) * job.duration / max(speed, 0.01)
-                    job.detail = f"Осталось примерно {self._pretty(left)}"
+                    job.detail = (f"Осталось примерно {self._pretty(left)}"
+                                  f" · {speed:.1f}× реального времени")
                 self.notify()
 
             job.sentences = self.recogniser.transcribe(audio, termbase, progress)
             if not job.sentences:
                 raise RuntimeError("В файле не распознано ни одной фразы")
 
+            job.speed = self.recogniser.last_speed or job.speed
             job.parts = self._build_prompts(job, termbase)
             job.state = AWAITING
             job.progress = 1.0
             job.detail = (f"{len(job.sentences)} фраз"
                           + (f" · {len(job.parts)} части"
-                             if len(job.parts) > 1 else ""))
+                             if len(job.parts) > 1 else "")
+                          + (f" · распознано за {self._pretty(job.duration / job.speed)}"
+                             f" ({job.speed:.1f}×)" if job.speed else ""))
             self._save(job)
         except Exception as exc:
             job.state = FAILED
@@ -237,7 +243,10 @@ class Pipeline:
             if reference:
                 listed = "\n".join(f"{k} = {v}" for k, v in reference.items())
                 terms = f"Названия и имена:\n{listed}\n\n"
-            prompts.append(PROMPT_TEMPLATE.format(terms=terms, body=body))
+            genre = str(env.load_config()["translation"].get("genre", "") or "")
+            prompts.append(PROMPT_TEMPLATE.format(
+                genre=f" Материал: {genre}." if genre else "",
+                terms=terms, body=body))
         return prompts
 
     # -- translation, entirely in memory ------------------------------------ #

@@ -115,9 +115,18 @@ class Termbase:
         lowered = text.lower()
         found: dict[str, str] = {}
         for source, target in self.pairs.items():
-            if all(stem in lowered for stem in _stems(source)):
+            stems = _stems(source)
+            if not stems:
+                continue
+            if all(self._stem_found(stem, lowered) for stem in stems):
                 found[source] = target
         return found
+
+    @staticmethod
+    def _stem_found(stem: str, lowered: str) -> bool:
+        if len(stem) < 4:
+            return re.search(rf"\b{re.escape(stem)}\b", lowered) is not None
+        return re.search(rf"\b{re.escape(stem)}\w*", lowered) is not None
 
 
 def normalise_romanian(text: str) -> str:
@@ -146,3 +155,21 @@ def _stems(phrase: str) -> list[str]:
     for word in re.findall(r"\w+", phrase.lower()):
         stems.append(word[:-2] if len(word) >= 6 else word)
     return stems
+
+
+def _stem_pattern(phrase: str) -> re.Pattern | None:
+    """Match stems as whole words, not as substrings.
+
+    A bare substring test finds "Бельцы" inside "колыбелькам" and offers the
+    translator a term from a different continent. Anchoring each stem to a word
+    start, and requiring at least four letters, removes that class of noise.
+    """
+    parts = []
+    for stem in _stems(phrase):
+        if len(stem) < 4:
+            parts.append(rf"\b{re.escape(stem)}\b")      # short: exact word
+        else:
+            parts.append(rf"\b{re.escape(stem)}\w*")     # longer: any ending
+    if not parts:
+        return None
+    return re.compile("|".join(parts))

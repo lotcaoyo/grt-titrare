@@ -62,7 +62,8 @@ DEFAULT_CONFIG: dict = {
     "recognition": {
         "language": "ru",
         "model": "auto",            # auto | large-v3 | medium
-        "beam_size": 5,
+        "beam_size": 1,
+        "word_timestamps": True,
         "vad": True,
         "batch_size": "auto",
     },
@@ -77,10 +78,12 @@ DEFAULT_CONFIG: dict = {
     },
     "sentences": {
         "pause_split": 0.7,
+        "min_chars": 30,
         "max_chars": 250,
     },
     "translation": {
         "chunk_size": 150,
+        "genre": "",
     },
     "update": {
         "enabled": True,
