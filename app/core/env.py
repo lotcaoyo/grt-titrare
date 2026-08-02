@@ -13,6 +13,12 @@ from pathlib import Path
 
 import yaml
 
+# Progress bars have nowhere to go in a windowed process, and the application
+# draws its own anyway. Set before the libraries are imported.
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+os.environ.setdefault("TQDM_DISABLE", "1")
+
 ROOT = Path(__file__).resolve().parents[2]
 
 RUNTIME = ROOT / "runtime"

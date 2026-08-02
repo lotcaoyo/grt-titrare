@@ -6,10 +6,19 @@ pythonw.exe, so failures are written to disk and shown in a dialog.
 
 from __future__ import annotations
 
+import os
 import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
+
+# pythonw.exe runs without a console, so sys.stdout and sys.stderr are None.
+# Any library that writes a progress bar - tqdm inside huggingface_hub and
+# faster-whisper both do - then dies with "NoneType has no attribute write".
+# This has to happen before those libraries are imported anywhere.
+for _stream in ("stdout", "stderr"):
+    if getattr(sys, _stream, None) is None:
+        setattr(sys, _stream, open(os.devnull, "w", encoding="utf-8"))
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

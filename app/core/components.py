@@ -91,6 +91,24 @@ def _file_gb(path: Path) -> float:
         return 0.0
 
 
+def _downloaded_mb(target: Path) -> float:
+    """Bytes on disk so far, finished and in flight.
+
+    The hub writes to a temporary .incomplete file and only renames it at the
+    end, so watching the final name alone would leave the bar at zero for the
+    whole three gigabytes. Only a handful of files match, so this stays cheap.
+    """
+    total = 0
+    try:
+        for weights in target.glob("*.bin"):
+            total += weights.stat().st_size
+        for partial in target.rglob("*.incomplete"):
+            total += partial.stat().st_size
+    except OSError:
+        pass
+    return total / 1e6
+
+
 _import_cache: dict[str, bool] = {}
 
 
@@ -278,6 +296,11 @@ class ModelComponent(Component):
             _pip(["huggingface_hub"], log)
 
         from huggingface_hub import snapshot_download
+        try:
+            from huggingface_hub.utils import disable_progress_bars
+            disable_progress_bars()
+        except Exception:
+            pass
 
         name = self.resolve_name()
         repo, expected_mb = MODEL_REPOS[name]
@@ -299,9 +322,8 @@ class ModelComponent(Component):
 
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
-        weights = target / "model.bin"
         while thread.is_alive():
-            done = _file_gb(weights) * 1000
+            done = _downloaded_mb(target)
             progress(min(done / expected_mb, 0.99),
                      f"Загрузка модели {name} — {done:.0f} из {expected_mb} МБ")
             time.sleep(0.7)
