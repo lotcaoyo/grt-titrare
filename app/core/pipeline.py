@@ -71,6 +71,7 @@ class Job:
     translated: dict[int, str] = field(default_factory=dict)
     srt_path: Path | None = None
     review: str = ""
+    stale: bool = False
     duration: float = 0.0
     speed: float = 0.0
     started: float = 0.0
@@ -121,20 +122,42 @@ class Pipeline:
         self.messages.append(message)
         self.notify()
 
-    def add(self, paths: list[Path]) -> int:
-        added = 0
+    def add(self, paths: list[Path]) -> tuple[int, int]:
+        """Returns how many films were new and how many were sent round again.
+
+        Dropping a film that is already in the list means "do it again" - most
+        often because the recognition improved. Silently ignoring it left the
+        user staring at an old result with no way to tell why."""
+        added = requeued = 0
         with self._lock:
-            known = {str(job.source) for job in self.jobs}
+            existing = {str(job.source): job for job in self.jobs}
             for path in paths:
-                if (path.is_file()
-                        and path.suffix.lower() in env.VIDEO_SUFFIXES
-                        and str(path) not in known):
-                    self.jobs.append(Job(source=path, name=path.stem))
-                    known.add(str(path))
+                if not path.is_file():
+                    continue
+                if path.suffix.lower() not in env.VIDEO_SUFFIXES:
+                    continue
+                job = existing.get(str(path))
+                if job is None:
+                    job = Job(source=path, name=path.stem)
+                    self.jobs.append(job)
+                    existing[str(path)] = job
                     added += 1
-        if added:
+                elif job.state in (AWAITING, DONE, FAILED):
+                    self._reset(job)
+                    requeued += 1
+        if added or requeued:
             self.notify()
-        return added
+        return added, requeued
+
+    def _reset(self, job: Job) -> None:
+        job.state = QUEUED
+        job.progress = 0.0
+        job.detail = ""
+        job.sentences = []
+        job.parts = []
+        job.translated.clear()
+        job.review = ""
+        job.speed = 0.0
 
     def remove(self, job: Job) -> None:
         with self._lock:
@@ -144,10 +167,7 @@ class Pipeline:
         self.notify()
 
     def retry(self, job: Job) -> None:
-        job.state = QUEUED
-        job.progress = 0.0
-        job.detail = ""
-        job.translated.clear()
+        self._reset(job)
         self.notify()
 
     # -- main loop ---------------------------------------------------------- #
@@ -340,6 +360,7 @@ class Pipeline:
                 "state": job.state,
                 "detail": job.detail,
                 "saved": datetime.now().isoformat(timespec="seconds"),
+                "app_version": env.VERSION,
                 "srt": str(job.srt_path) if job.srt_path else "",
                 "sentences": [{"i": s.index, "text": s.text,
                                "start": round(s.start, 3), "end": round(s.end, 3)}
@@ -374,4 +395,13 @@ class Pipeline:
                 job.srt_path = Path(data["srt"])
             if job.state == AWAITING and job.sentences:
                 job.parts = self._build_prompts(job, termbase)
+                # Sentence splitting changes between releases. Text recognised
+                # by an older build is still usable, but the user has to know
+                # it will not reflect the fixes they just installed.
+                if str(data.get("app_version", "")) != env.VERSION:
+                    job.stale = True
+                    job.detail = (f"{len(job.sentences)} фраз · распознано "
+                                  f"версией {data.get('app_version') or '—'}. "
+                                  f"Нажмите «Распознать заново», чтобы "
+                                  f"применить исправления")
             self.jobs.append(job)

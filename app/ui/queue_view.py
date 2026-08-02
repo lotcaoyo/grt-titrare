@@ -136,15 +136,17 @@ class JobCard(tk.Frame):
 
         if job.state == pipeline.AWAITING:
             self._set_actions([
-                ("Перевести", self._translate, "primary"),
-                ("Расшифровка", self._show_transcript, "quiet"),
+                ("Распознать заново" if job.stale else "Перевести",
+                 self._retry if job.stale else self._translate, "primary"),
+                ("Перевести как есть", self._translate, "quiet") if job.stale
+                else ("Расшифровка", self._show_transcript, "quiet"),
                 ("Убрать", self._remove, "quiet"),
             ])
         elif job.state == pipeline.DONE:
             self._set_actions([
                 ("Открыть титры", self._open_srt, "secondary"),
                 ("Сверка RU / RO", self._show_review, "quiet"),
-                ("Показать файл", self._reveal, "quiet"),
+                ("Распознать заново", self._retry, "quiet"),
                 ("Убрать", self._remove, "quiet"),
             ])
         elif job.state == pipeline.FAILED:
@@ -241,6 +243,8 @@ class QueueView(tk.Frame):
         self.drop = DropZone(self, self.accept)
         self.drop.pack(fill="x", padx=28, pady=(0, 6))
 
+        self.notice = theme.body(self, "", theme.ACCENT, 10)
+
         self.area = theme.Scrollable(self)
         self.area.pack(fill="both", expand=True, padx=20, pady=(6, 8))
 
@@ -252,9 +256,18 @@ class QueueView(tk.Frame):
         self.empty.pack(fill="x", padx=16, pady=10)
 
     def accept(self, paths: list[Path]) -> None:
-        added = self.engine.add(paths)
-        if added == 0:
-            self.summary.configure(text="Эти файлы уже в списке")
+        added, requeued = self.engine.add(paths)
+        if requeued:
+            self.flash(f"Запускаю заново: {requeued}")
+        elif not added:
+            self.flash("Это не видеофайлы")
+
+    def flash(self, message: str) -> None:
+        """Notices belong where the eye already is, not in a corner that the
+        next refresh overwrites."""
+        self.notice.configure(text=message)
+        self.notice.pack(fill="x", padx=28, pady=(0, 8), before=self.area)
+        self.after(4000, self.notice.pack_forget)
 
     def forget(self, job: pipeline.Job) -> None:
         card = self.cards.pop(job.name, None)
