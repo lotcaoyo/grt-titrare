@@ -122,7 +122,7 @@ def local() -> Path:
     return env.ROOT / f"{NAME}.lnk"
 
 
-ICON_STAMP = "exe-v14"       # bump when the icon changes
+ICON_STAMP = "exe-v15"       # bump when the icon changes
 
 
 def ensure() -> tuple[Path | None, Path | None]:
