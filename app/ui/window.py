@@ -15,6 +15,7 @@ import tkinter as tk
 from ..core import env, gpu, pipeline, shortcut, updater
 from . import theme
 from .archive_view import ArchiveView
+from . import win_icon
 from .components_view import ComponentsView
 from .queue_view import QueueView
 
@@ -40,7 +41,6 @@ class App(_Base):
         env.enable_local_packages()
 
         self.title("GRT Titrare")
-        self._apply_icon()
         self.geometry("900x720")
         self.minsize(780, 580)
         self.configure(bg=theme.BG)
@@ -69,6 +69,9 @@ class App(_Base):
         self._touched = False
         self.show("components")
 
+        # Окно должно существовать: иконка ставится по его дескриптору.
+        self._apply_icon()
+
         self.engine.start()
         shortcut.ensure_once()     # рабочий стол; остальное готово до окна
         self.protocol("WM_DELETE_WINDOW", self._close)
@@ -76,16 +79,21 @@ class App(_Base):
         self.after(1200, self._check_update)
 
     def _apply_icon(self) -> None:
-        """iconbitmap sets the window and taskbar icon on Windows; iconphoto
-        is the fallback everywhere else. Neither is worth crashing over."""
+        """Windows gets the icon through its own interface.
+
+        Tk's iconbitmap stretches one frame out of the .ico to every size the
+        system asks for, and that stretched picture overrides the icon built
+        into the executable while the application runs. LoadImage instead picks
+        the frame that matches each requested size exactly."""
         ico = env.ASSETS / env.ICON_NAME
         png = env.ASSETS / "icon.png"
 
-        # On Windows the .ico is the only right answer: it carries ten sizes
-        # drawn for their exact pixel count. Adding iconphoto on top hands the
-        # system a single 256px bitmap and lets it squash that down instead,
-        # which is what made the taskbar icon look blurred.
-        if sys.platform == "win32" and ico.exists():
+        if sys.platform == "win32":
+            # The source is the .ico, not the .exe: loading from a file expects
+            # an icon file, and the .ico carries every size already. It is the
+            # same picture that was compiled into the executable.
+            if win_icon.apply(self, ico):
+                return
             try:
                 self.iconbitmap(default=str(ico))
                 return
