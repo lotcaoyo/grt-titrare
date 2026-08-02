@@ -99,6 +99,14 @@ def run() -> list[str]:
                 except OSError:
                     pass
 
+    # Half-built launcher left behind by an interrupted rebuild.
+    for stray in (env.RUNTIME / "python" / "Scripts").glob("*.new"):
+        try:
+            stray.unlink()
+            removed.append(f"runtime/.../{stray.name}")
+        except OSError:
+            pass
+
     # A backup is kept only until the next update proves the new code runs.
     backup = env.DATA / "app_backup"
     if backup.is_dir():

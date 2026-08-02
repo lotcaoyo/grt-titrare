@@ -12,7 +12,7 @@ import sys
 import threading
 import tkinter as tk
 
-from ..core import env, gpu, pipeline, shortcut, updater
+from ..core import env, gpu, launcher, pipeline, shortcut, updater
 from . import theme
 from .archive_view import ArchiveView
 from .components_view import ComponentsView
@@ -70,6 +70,7 @@ class App(_Base):
         self.show("components")
 
         self.engine.start()
+        launcher.ensure()          # свой .exe с иконкой внутри
         shortcut.ensure_once()
         self.protocol("WM_DELETE_WINDOW", self._close)
         self.after(200, self._tick)

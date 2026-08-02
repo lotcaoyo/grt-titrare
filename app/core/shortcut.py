@@ -14,7 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import env
+from . import env, launcher
 
 ICON = env.ASSETS / env.ICON_NAME
 NAME = "GRT Titrare"
@@ -61,7 +61,13 @@ def _powershell(script: str) -> str | None:
 
 
 def _target() -> tuple[Path, str]:
-    """pythonw when the environment is built, the launcher otherwise."""
+    """Our own executable first.
+
+    Windows reads the icon of a pinned item from the .exe it points at, so a
+    shortcut to pythonw.exe pins the Python logo no matter what else is set."""
+    own = launcher.ensure()
+    if own is not None and own.exists():
+        return own, str(env.ROOT / "app" / "main.py")
     if env.PYTHONW.exists():
         return env.PYTHONW, str(env.ROOT / "app" / "main.py")
     return env.ROOT / "GRT Titrare.bat", ""
@@ -89,7 +95,7 @@ def create() -> Path | None:
     return Path(result) if result else None
 
 
-ICON_STAMP = "icon-v12"       # bump when the icon changes
+ICON_STAMP = "exe-v12"       # bump when the icon changes
 
 
 def ensure_once() -> Path | None:

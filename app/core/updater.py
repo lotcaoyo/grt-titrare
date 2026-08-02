@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from . import env
+from . import env, launcher
 
 MANIFEST_URL = "https://raw.githubusercontent.com/{repo}/{branch}/manifest.json"
 ARCHIVE_URL = "https://codeload.github.com/{repo}/zip/refs/heads/{branch}"
@@ -154,7 +154,9 @@ def _installed_version() -> str:
 
 def restart() -> None:
     """Start the freshly installed code and let this process go."""
-    executable = env.PYTHONW if env.PYTHONW.exists() else Path(sys.executable)
+    own = launcher.ensure()
+    executable = (own if own and own.exists()
+                  else env.PYTHONW if env.PYTHONW.exists() else Path(sys.executable))
     entry = env.ROOT / "app" / "main.py"
     try:
         subprocess.Popen([str(executable), str(entry)],

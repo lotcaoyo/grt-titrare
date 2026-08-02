@@ -1,7 +1,7 @@
 @echo off
 rem ASCII only on purpose: cmd.exe misreads Cyrillic in .bat files.
 rem All Russian text lives in the graphical interface.
-setlocal
+setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 set "PY=runtime\python\Scripts\pythonw.exe"
@@ -17,7 +17,12 @@ rem and vanish with no explanation.
 if exist "%PYC%" (
     "%PYC%" -c "import tkinter, yaml" >nul 2>&1
     if not errorlevel 1 (
-        start "" "%PY%" "app\main.py"
+        set "OWN=runtime\python\Scripts\GRT Titrare.exe"
+        if exist "!OWN!" (
+            start "" "!OWN!" "app\main.py"
+        ) else (
+            start "" "%PY%" "app\main.py"
+        )
         exit /b 0
     )
 )
@@ -30,7 +35,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
-set "PY=runtime\python\Scripts\pythonw.exe"
+rem Prefer our own executable: Windows takes the taskbar and pin icon from the
+rem running .exe, and pythonw.exe carries the Python logo.
+set "PY=runtime\python\Scripts\GRT Titrare.exe"
+if not exist "%PY%" set "PY=runtime\python\Scripts\pythonw.exe"
 if not exist "%PY%" set "PY=runtime\python\pythonw.exe"
 start "" "%PY%" "app\main.py"
 exit /b 0
