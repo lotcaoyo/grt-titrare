@@ -85,18 +85,19 @@ class App(_Base):
         system asks for, and that stretched picture overrides the icon built
         into the executable while the application runs. LoadImage instead picks
         the frame that matches each requested size exactly."""
-        ico = env.ASSETS / env.ICON_NAME
+        ico = env.icon_path()
         png = env.ASSETS / "icon.png"
 
         if sys.platform == "win32":
             # The source is the .ico, not the .exe: loading from a file expects
             # an icon file, and the .ico carries every size already. It is the
             # same picture that was compiled into the executable.
-            if win_icon.apply(self, ico):
+            if ico is not None and win_icon.apply(self, ico):
                 return
             try:
-                self.iconbitmap(default=str(ico))
-                return
+                if ico is not None:
+                    self.iconbitmap(default=str(ico))
+                    return
             except tk.TclError:
                 pass
         try:

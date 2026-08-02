@@ -437,6 +437,11 @@ class ShortcutComponent(Component):
         on_desktop = shortcut.existing() is not None
         in_folder = shortcut.local().exists()
         own_exe = launcher.path().exists()
+        icon = env.icon_path()
+
+        if icon is None:
+            return BLOCKED, ("Файл иконки не найден в папке assets. "
+                             "Распакуйте обновление ещё раз.")
 
         parts = []
         parts.append("на рабочем столе" if on_desktop else "нет на рабочем столе")

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from . import env, launcher
 
-ICON = env.ASSETS / env.ICON_NAME
+ICON = env.ASSETS / env.ICON_NAME  # см. env.icon_path()
 NAME = "GRT Titrare"
 
 # The executable is a copy of the interpreter: on its own, with no script to
@@ -93,7 +93,8 @@ def _create_in(folder: str) -> Path | None:
     if target.suffix.lower() == ".exe":
         icon_location = f"{target},0"
     else:
-        icon_location = str(ICON if ICON.exists() else target)
+        found = env.icon_path()
+        icon_location = str(found if found else target)
 
     script = _SCRIPT.format(
         folder=folder.replace("'", "''"),

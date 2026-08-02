@@ -119,6 +119,19 @@ def read_version() -> str:
 VERSION = read_version()
 
 
+def icon_path() -> Path | None:
+    """The named icon, or any icon that is actually there.
+
+    An update that fails to deliver one file should not leave the application
+    with no icon at all — that is how the default Tk feather ends up on the
+    taskbar."""
+    named = ASSETS / ICON_NAME
+    if named.is_file():
+        return named
+    others = sorted(ASSETS.glob("icon*.ico"), reverse=True)
+    return others[0] if others else None
+
+
 def ensure_dirs() -> None:
     for path in (RUNTIME, BIN, PACKAGES, MODELS, LOGS, DATA, SESSIONS, TEMP):
         path.mkdir(parents=True, exist_ok=True)

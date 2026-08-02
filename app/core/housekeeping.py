@@ -90,7 +90,9 @@ def run() -> list[str]:
     # Previous icon files: each release ships a new name to defeat the icon
     # cache, and the old ones are dead weight.
     assets = env.ROOT / "assets"
-    if assets.is_dir():
+    # Only once the current icon is confirmed present: otherwise a botched
+    # update would leave the folder with no icon whatsoever.
+    if assets.is_dir() and (assets / env.ICON_NAME).is_file():
         for old in assets.glob("icon*.ico"):
             if old.name != env.ICON_NAME:
                 try:

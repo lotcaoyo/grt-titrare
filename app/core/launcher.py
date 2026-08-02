@@ -145,8 +145,8 @@ def ensure() -> Path | None:
         except OSError:
             pass
 
-    ico = env.ASSETS / env.ICON_NAME
-    if not ico.exists():
+    ico = env.icon_path()
+    if ico is None:
         return None
 
     try:

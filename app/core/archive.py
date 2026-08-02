@@ -51,6 +51,31 @@ class Entry:
             return 0.0
 
     @property
+    def moment(self) -> datetime | None:
+        try:
+            return datetime.fromisoformat(self.created)
+        except ValueError:
+            return None
+
+    @property
+    def bucket(self) -> str:
+        """Which heading this entry belongs under."""
+        moment = self.moment
+        if moment is None:
+            return "Раньше"
+        today = datetime.now().date()
+        days = (today - moment.date()).days
+        if days <= 0:
+            return "Сегодня"
+        if days == 1:
+            return "Вчера"
+        if days < 7:
+            return "На этой неделе"
+        if days < 30:
+            return "В этом месяце"
+        return "Раньше"
+
+    @property
     def when(self) -> str:
         try:
             moment = datetime.fromisoformat(self.created)
@@ -205,6 +230,24 @@ def backfill_from_sessions() -> int:
 
 def forget(path: Path) -> None:
     _store([e for e in _load() if e.path != path])
+
+
+def clear() -> int:
+    """Forget every record. The subtitle files themselves are not touched:
+    they belong to the videos they were made for, not to this list."""
+    count = len(_load())
+    _store([])
+    return count
+
+
+BUCKET_ORDER = ("Сегодня", "Вчера", "На этой неделе", "В этом месяце", "Раньше")
+
+
+def grouped(entries: list[Entry]) -> list[tuple[str, list[Entry]]]:
+    buckets: dict[str, list[Entry]] = {}
+    for entry in entries:
+        buckets.setdefault(entry.bucket, []).append(entry)
+    return [(name, buckets[name]) for name in BUCKET_ORDER if name in buckets]
 
 
 def read(entry: Entry) -> str:
