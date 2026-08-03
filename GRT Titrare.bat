@@ -27,7 +27,11 @@ if exist "%PYC%" (
     )
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "bootstrap.ps1"
+rem Full path on purpose: a short name depends on PATH, and a machine with an
+rem unusual PATH would fail here with a message about an unknown command.
+set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if not exist "%PS%" set "PS=powershell"
+"%PS%" -NoProfile -ExecutionPolicy Bypass -File "bootstrap.ps1"
 if errorlevel 1 (
     echo.
     echo Setup failed. Press any key to close.

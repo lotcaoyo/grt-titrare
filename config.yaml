@@ -36,9 +36,4 @@ termbase:
   shared_path: ""
 
 update:
-  enabled: true
-  # Репозиторий на GitHub в виде "логин/название". Пока пусто —
-  # приложение обновления не проверяет.
-  repo: ""
-  branch: main
-  check_on_start: true
+  repo: "lotcaoyo/grt-titrare"

@@ -97,47 +97,71 @@ function Find-Python {
 Say 'Looking for Python on this computer...'
 $python = Find-Python
 
-# --- route 2: a standalone build, no installer at all ------------------------ #
+# --- route 2: a portable build that ships Tkinter ---------------------------- #
 #
-# The MSI bundle reports success and then leaves nothing at the requested path
-# often enough that it cannot be the primary route. This package is a plain
-# zip of a complete CPython: unpack and it works. No registry, no elevation,
-# no chance of it deciding to install somewhere else.
+# The MSI bundle can report success and install nothing, and the plain NuGet
+# package has no Tkinter, so neither can be the primary route. These builds are
+# a complete CPython in a tar archive - unpack and it runs. No registry, no
+# elevation, and Tkinter is inside, which is what the interface needs.
 
 if (-not $python) {
-    $version = '3.12.10'
-    $pkg = Join-Path $env:TEMP 'grt-python-pkg.zip'
-    $unpack = Join-Path $env:TEMP 'grt-python-pkg'
+    $archive = Join-Path $env:TEMP 'grt-python.tar.gz'
+    $unpack  = Join-Path $env:TEMP 'grt-python-unpack'
+    $pinned  = 'https://github.com/astral-sh/python-build-standalone/releases/download/20260728/cpython-3.12.13%2B20260728-x86_64-pc-windows-msvc-install_only.tar.gz'
 
-    Say "Downloading a standalone Python $version (about 30 MB)..."
-    try {
-        Remove-Item -Recurse -Force $unpack -ErrorAction SilentlyContinue
-        Remove-Item -Force $pkg -ErrorAction SilentlyContinue
-        (New-Object Net.WebClient).DownloadFile(
-            "https://www.nuget.org/api/v2/package/python/$version", $pkg)
-
-        Say 'Unpacking...'
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        [IO.Compression.ZipFile]::ExtractToDirectory($pkg, $unpack)
-
-        $tools = Join-Path $unpack 'tools'
-        if (Test-Path (Join-Path $tools 'python.exe')) {
-            Remove-Item -Recurse -Force $BaseDir -ErrorAction SilentlyContinue
-            Move-Item $tools $BaseDir
-            if (Test-Python (Join-Path $BaseDir 'python.exe')) {
-                $python = Join-Path $BaseDir 'python.exe'
-                Good 'Standalone build ready.'
-            } else {
-                Say 'The standalone build is missing Tkinter, trying the installer.'
-            }
-        } else {
-            Say 'The package did not contain what was expected.'
+    # Full path first: a short name depends on PATH, which cannot be trusted.
+    $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
+    if (-not (Test-Path $tar)) {
+        $cmd = Get-Command tar -ErrorAction SilentlyContinue
+        $tar = if ($cmd) { $cmd.Source } else { $null }
+    }
+    if (-not $tar) {
+        Say 'tar is unavailable on this Windows build, skipping.'
+    } else {
+        # Ask for the newest build, fall back to a known one if GitHub is
+        # unreachable or the answer is not what we expect.
+        $url = $pinned
+        try {
+            $api = Invoke-RestMethod -TimeoutSec 20 -Headers @{ 'User-Agent' = 'GRT-Titrare' } `
+                'https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest'
+            $asset = $api.assets | Where-Object {
+                $_.name -like 'cpython-3.12.*-x86_64-pc-windows-msvc-install_only.tar.gz'
+            } | Select-Object -First 1
+            if ($asset) { $url = $asset.browser_download_url }
+        } catch {
+            Say 'Could not ask for the newest build, using the known one.'
         }
-    } catch {
-        Say "Standalone build failed: $($_.Exception.Message)"
-    } finally {
-        Remove-Item -Force $pkg -ErrorAction SilentlyContinue
-        Remove-Item -Recurse -Force $unpack -ErrorAction SilentlyContinue
+
+        Say 'Downloading a portable Python (about 45 MB)...'
+        try {
+            Remove-Item -Recurse -Force $unpack -ErrorAction SilentlyContinue
+            Remove-Item -Force $archive -ErrorAction SilentlyContinue
+            (New-Object Net.WebClient).DownloadFile($url, $archive)
+
+            Say 'Unpacking...'
+            New-Item -ItemType Directory -Force -Path $unpack | Out-Null
+            & $tar -xzf $archive -C $unpack
+            if ($LASTEXITCODE -ne 0) { throw "tar returned $LASTEXITCODE" }
+
+            $inner = Join-Path $unpack 'python'
+            if (Test-Path (Join-Path $inner 'python.exe')) {
+                Remove-Item -Recurse -Force $BaseDir -ErrorAction SilentlyContinue
+                Move-Item $inner $BaseDir
+                if (Test-Python (Join-Path $BaseDir 'python.exe')) {
+                    $python = Join-Path $BaseDir 'python.exe'
+                    Good 'Portable build ready.'
+                } else {
+                    Say 'The portable build did not pass the check.'
+                }
+            } else {
+                Say 'The archive did not contain what was expected.'
+            }
+        } catch {
+            Say "Portable build failed: $($_.Exception.Message)"
+        } finally {
+            Remove-Item -Force $archive -ErrorAction SilentlyContinue
+            Remove-Item -Recurse -Force $unpack -ErrorAction SilentlyContinue
+        }
     }
 }
 
