@@ -97,7 +97,51 @@ function Find-Python {
 Say 'Looking for Python on this computer...'
 $python = Find-Python
 
-# --- route 2: install one ---------------------------------------------------- #
+# --- route 2: a standalone build, no installer at all ------------------------ #
+#
+# The MSI bundle reports success and then leaves nothing at the requested path
+# often enough that it cannot be the primary route. This package is a plain
+# zip of a complete CPython: unpack and it works. No registry, no elevation,
+# no chance of it deciding to install somewhere else.
+
+if (-not $python) {
+    $version = '3.12.10'
+    $pkg = Join-Path $env:TEMP 'grt-python-pkg.zip'
+    $unpack = Join-Path $env:TEMP 'grt-python-pkg'
+
+    Say "Downloading a standalone Python $version (about 30 MB)..."
+    try {
+        Remove-Item -Recurse -Force $unpack -ErrorAction SilentlyContinue
+        Remove-Item -Force $pkg -ErrorAction SilentlyContinue
+        (New-Object Net.WebClient).DownloadFile(
+            "https://www.nuget.org/api/v2/package/python/$version", $pkg)
+
+        Say 'Unpacking...'
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [IO.Compression.ZipFile]::ExtractToDirectory($pkg, $unpack)
+
+        $tools = Join-Path $unpack 'tools'
+        if (Test-Path (Join-Path $tools 'python.exe')) {
+            Remove-Item -Recurse -Force $BaseDir -ErrorAction SilentlyContinue
+            Move-Item $tools $BaseDir
+            if (Test-Python (Join-Path $BaseDir 'python.exe')) {
+                $python = Join-Path $BaseDir 'python.exe'
+                Good 'Standalone build ready.'
+            } else {
+                Say 'The standalone build is missing Tkinter, trying the installer.'
+            }
+        } else {
+            Say 'The package did not contain what was expected.'
+        }
+    } catch {
+        Say "Standalone build failed: $($_.Exception.Message)"
+    } finally {
+        Remove-Item -Force $pkg -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force $unpack -ErrorAction SilentlyContinue
+    }
+}
+
+# --- route 3: the official installer ----------------------------------------- #
 
 if (-not $python) {
     $version   = '3.12.10'
@@ -154,6 +198,27 @@ if (-not $python) {
 if (-not $python) {
     Write-Host ''
     Bad 'Could not find or install Python.'
+    Write-Host ''
+    Write-Host '  Checked these locations:'
+    foreach ($place in @($BaseDir,
+                         "$env:LOCALAPPDATA\Programs\Python",
+                         "$env:ProgramFiles\Python312",
+                         'C:\Python312')) {
+        $found = Test-Path (Join-Path $place 'python.exe')
+        Write-Host ("    {0,-5} {1}" -f $(if ($found) {'yes'} else {'no'}), $place)
+    }
+
+    # Say why a Python that IS there was rejected: almost always Tkinter.
+    $any = Get-ChildItem -Path $BaseDir, "$env:LOCALAPPDATA\Programs\Python" `
+        -Filter 'python.exe' -Recurse -Depth 2 -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($any) {
+        Write-Host ''
+        Write-Host "  Found $($any.FullName) but it did not pass the check:"
+        & $any.FullName -c $Probe 2>&1 | ForEach-Object { Write-Host "    $_" }
+    }
+
+    Write-Host ''
     Write-Host '  Install Python 3.12 manually, ticking "Add python.exe to PATH",'
     Write-Host '  then run this file again:'
     Write-Host '  https://www.python.org/downloads/release/python-31210/'
